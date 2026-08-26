@@ -17,72 +17,41 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# STRICT LIGHT THEME CSS: White Background, Black Buttons, White Button Text
+# Added explicit button background and text colors to fix the contrast UI issue
 st.markdown(
     """
     <style>
-    /* Force App Background to White */
-    .stApp, .main {
-        background-color: #ffffff !important;
+    .main { background-color: #0e1117; color: #fafafa; }
+    
+    /* Button Styling Fixes */
+    .stButton>button { 
+        border-radius: 8px; 
+        font-weight: 600; 
+        background-color: #2563eb !important; /* Blue background */
+        color: #ffffff !important;            /* White text */
+        border: none !important;
+    }
+    .stButton>button:hover {
+        background-color: #1d4ed8 !important; /* Darker blue on hover */
+        color: #ffffff !important;
     }
     
-    /* Force all general text, headers, and labels to Black */
-    h1, h2, h3, h4, h5, h6, p, span, div, label, li {
-        color: #000000 !important;
-    }
-
-    /* Force Sidebar Background and Text */
-    [data-testid="stSidebar"] {
-        background-color: #f8f9fa !important;
-    }
-    [data-testid="stSidebar"] * {
-        color: #000000 !important;
-    }
-
-    /* Button Styling: Black background, White text */
-    .stButton > button {
-        background-color: #000000 !important;
-        color: #ffffff !important;
-        border-radius: 8px;
-        font-weight: 600;
-        border: 1px solid #000000;
-        transition: 0.2s;
-    }
-    .stButton > button:hover {
-        background-color: #333333 !important;
-        color: #ffffff !important;
-        border: 1px solid #333333;
-    }
-    .stButton > button * {
-        color: #ffffff !important;
-    }
-
-    /* Input Fields (Text boxes, Number inputs) */
-    .stTextInput input, .stNumberInput input {
-        color: #000000 !important;
-        background-color: #ffffff !important;
-        border: 1px solid #cccccc !important;
-    }
-
-    /* Custom Containers */
     .notes-box {
-        background-color: #f4f4f5 !important;
+        background-color: #1e1e2e;
         padding: 20px;
         border-radius: 8px;
-        border-left: 5px solid #000000;
+        border-left: 5px solid #2563eb;
         height: 520px;
         overflow-y: auto;
-        color: #000000 !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        color: #ffffff;
     }
     .mcq-card {
-        background-color: #ffffff !important;
+        background-color: #1e1e2e;
         padding: 16px;
         border-radius: 8px;
-        border: 1px solid #000000;
+        border: 1px solid #444;
         margin-bottom: 12px;
-        color: #000000 !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        color: #ffffff;
     }
     </style>
     """,
@@ -117,14 +86,11 @@ if "rag_chat_history" not in st.session_state:
 # 3. HELPER FUNCTIONS
 # -----------------------------------------------------------------------------
 def display_pdf(pdf_bytes):
-    """Displays the uploaded PDF. Relies on the download button if browser blocks inline."""
+    """Displays the uploaded PDF in the Streamlit UI."""
     base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-    
-    # Try rendering via iframe (some cloud environments block this)
-    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf"></iframe>'
+    pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf" />'
     st.markdown(pdf_display, unsafe_allow_html=True)
     
-    st.info("ℹ️ If the PDF above is blank, your browser's security settings are blocking it. Use the button below to view it.")
     st.download_button(
         label="Download / View PDF externally",
         data=pdf_bytes,
@@ -150,7 +116,9 @@ def load_notes_from_file(filepath):
     return "Notes not found."
 
 def generate_content_with_groq(api_key, module_title, context, config):
-    llm = ChatGroq(groq_api_key=api_key, model_name="mixtral-8x7b-32768")
+    """Calls Groq using the currently supported Llama 3 model."""
+    # Changed model from decommissioned mixtral to llama3-70b-8192
+    llm = ChatGroq(groq_api_key=api_key, model_name="llama3-70b-8192", temperature=0.2)
     
     prompt = PromptTemplate.from_template("""
     You are an expert AI curriculum developer. Based on the syllabus context provided, generate the following for the module: '{module_title}'
@@ -158,12 +126,12 @@ def generate_content_with_groq(api_key, module_title, context, config):
     Context: {context}
     
     Requirements:
-    1. PRE-CLASS NOTES: Deep, hourly-basis theoretical notes.
-    2. POST-CLASS NOTES: Summary, practical applications, and review notes.
+    1. PRE-CLASS NOTES: Deep, hourly-basis theoretical notes formatted in Markdown.
+    2. POST-CLASS NOTES: Summary, practical applications, and review notes formatted in Markdown.
     3. PRE-CLASS MCQs: Exactly {pre_low} Low, {pre_mid} Medium, and {pre_hard} Hard questions.
     4. POST-CLASS MCQs: Exactly {post_low} Low, {post_mid} Medium, and {post_hard} Hard questions.
     
-    Output strictly in the following JSON format:
+    Output strictly in the following JSON format without any additional conversational text or markdown code blocks wrapped around it. Just the pure JSON object:
     {{
         "pre_class_notes": "markdown string",
         "post_class_notes": "markdown string",
@@ -182,10 +150,11 @@ def generate_content_with_groq(api_key, module_title, context, config):
     
     try:
         content = response.content
+        # Better extraction to ensure we grab the JSON safely
         json_str = content[content.find("{"):content.rfind("}")+1]
         return json.loads(json_str)
     except Exception as e:
-        st.error(f"Failed to parse Groq output. Error: {e}")
+        st.error(f"Failed to parse Groq output. Ensure the model returned valid JSON. Error: {e}")
         return None
 
 def extract_syllabus_structure(raw_text: str, college: str, uni: str):
@@ -214,6 +183,7 @@ def extract_syllabus_structure(raw_text: str, college: str, uni: str):
             },
         ],
     }
+
 
 # -----------------------------------------------------------------------------
 # 4. SIDEBAR NAVIGATION
