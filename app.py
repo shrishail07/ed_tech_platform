@@ -77,7 +77,13 @@ def display_pdf(pdf_bytes):
     st.markdown(pdf_display, unsafe_allow_html=True)
 
 def extract_pdf_text(pdf_bytes) -> str:
-    pdf_reader = PdfReader(io.BytesIO(pdf_bytes))
+    # 1. Strip leading whitespace bytes to fix the "invalid pdf header" error
+    cleaned_bytes = pdf_bytes.lstrip() 
+    
+    # 2. Read the cleaned bytes
+    pdf_reader = PdfReader(io.BytesIO(cleaned_bytes))
+    
+    # 3. Extract text
     return "\n".join([page.extract_text() for page in pdf_reader.pages if page.extract_text()])
 
 def save_notes_to_file(module_id, note_type, content):
