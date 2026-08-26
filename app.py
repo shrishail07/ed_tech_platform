@@ -1,57 +1,39 @@
 import os
 import io
 import json
-import base64
 import streamlit as st
 from pypdf import PdfReader
+import docx2txt
 from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 
 # -----------------------------------------------------------------------------
-# 1. PAGE CONFIGURATION & CUSTOM STYLING
+# 1. PAGE CONFIGURATION & STYLING
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="AI Syllabus & Interactive Learning Platform",
-    page_icon="🎓",
-    layout="wide",
-    initial_sidebar_state="expanded",
+    page_title="Faculty Syllabus Extractor & Planner",
+    page_icon="📋",
+    layout="wide"
 )
 
-# Added explicit button background and text colors to fix the contrast UI issue
 st.markdown(
     """
     <style>
     .main { background-color: #0e1117; color: #fafafa; }
-    
-    /* Button Styling Fixes */
+    .stTextArea textarea { background-color: #1e1e2e !important; color: #ffffff !important; border: 1px solid #333; }
     .stButton>button { 
+        background-color: #2563eb !important; 
+        color: #ffffff !important; 
         border-radius: 8px; 
-        font-weight: 600; 
-        background-color: #2563eb !important; /* Blue background */
-        color: #ffffff !important;            /* White text */
-        border: none !important;
+        font-weight: bold; 
     }
-    .stButton>button:hover {
-        background-color: #1d4ed8 !important; /* Darker blue on hover */
-        color: #ffffff !important;
-    }
-    
-    .notes-box {
+    .stButton>button:hover { background-color: #1d4ed8 !important; }
+    .header-box {
         background-color: #1e1e2e;
-        padding: 20px;
+        padding: 15px;
         border-radius: 8px;
         border-left: 5px solid #2563eb;
-        height: 520px;
-        overflow-y: auto;
-        color: #ffffff;
-    }
-    .mcq-card {
-        background-color: #1e1e2e;
-        padding: 16px;
-        border-radius: 8px;
-        border: 1px solid #444;
-        margin-bottom: 12px;
-        color: #ffffff;
+        margin-bottom: 20px;
     }
     </style>
     """,
@@ -59,303 +41,198 @@ st.markdown(
 )
 
 # -----------------------------------------------------------------------------
-# 2. SESSION STATE & DIRECTORY INITIALIZATION
+# 2. SESSION STATE MANAGEMENT
 # -----------------------------------------------------------------------------
-NOTES_DIR = "./generated_notes"
-os.makedirs(NOTES_DIR, exist_ok=True)
-
-if "faculty_data" not in st.session_state:
-    st.session_state.faculty_data = {
-        "college_name": "",
-        "university_name": "",
-        "raw_text": "",
-        "pdf_bytes": None,
-        "extracted_meta": None,
-        "modules": [],
-        "supplementary": [],
-    }
-
-if "submission_result" not in st.session_state:
-    st.session_state.submission_result = None
-
-if "rag_chat_history" not in st.session_state:
-    st.session_state.rag_chat_history = []
-
+if "extracted_data" not in st.session_state:
+    st.session_state.extracted_data = None
 
 # -----------------------------------------------------------------------------
 # 3. HELPER FUNCTIONS
 # -----------------------------------------------------------------------------
-def display_pdf(pdf_bytes):
-    """Displays the uploaded PDF in the Streamlit UI."""
-    base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-    pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf" />'
-    st.markdown(pdf_display, unsafe_allow_html=True)
-    
-    st.download_button(
-        label="Download / View PDF externally",
-        data=pdf_bytes,
-        file_name="uploaded_syllabus.pdf",
-        mime="application/pdf"
-    )
+def extract_text(uploaded_file) -> str:
+    """Extracts text from PDF or DOCX files."""
+    text = ""
+    if uploaded_file.name.endswith(".pdf"):
+        pdf_reader = PdfReader(io.BytesIO(uploaded_file.getvalue()))
+        text = "\n".join([page.extract_text() for page in pdf_reader.pages if page.extract_text()])
+    elif uploaded_file.name.endswith((".docx", ".doc")):
+        text = docx2txt.process(io.BytesIO(uploaded_file.getvalue()))
+    return text
 
-def extract_pdf_text(pdf_bytes) -> str:
-    cleaned_bytes = pdf_bytes.lstrip() 
-    pdf_reader = PdfReader(io.BytesIO(cleaned_bytes))
-    return "\n".join([page.extract_text() for page in pdf_reader.pages if page.extract_text()])
-
-def save_notes_to_file(module_id, note_type, content):
-    filename = f"{NOTES_DIR}/module_{module_id}_{note_type}.md"
-    with open(filename, "w", encoding="utf-8") as f:
-        f.write(content)
-    return filename
-
-def load_notes_from_file(filepath):
-    if os.path.exists(filepath):
-        with open(filepath, "r", encoding="utf-8") as f:
-            return f.read()
-    return "Notes not found."
-
-def generate_content_with_groq(api_key, module_title, context, config):
-    """Calls Groq using the currently supported GPT-OSS model."""
-    # Changed model to the currently supported openai/gpt-oss-120b
-    llm = ChatGroq(groq_api_key=api_key, model_name="openai/gpt-oss-120b", temperature=0.2)
+def process_syllabus_with_groq(api_key, text_content):
+    """Uses Groq to extract syllabus metadata, outcomes, resources, and module plans in JSON."""
+    llm = ChatGroq(groq_api_key=api_key, model_name="llama-3.1-70b-versatile", temperature=0.1)
     
     prompt = PromptTemplate.from_template("""
-    You are an expert AI curriculum developer. Based on the syllabus context provided, generate the following for the module: '{module_title}'
+    You are an expert academic planner and AI curriculum designer. Analyze the following syllabus document and extract the details.
     
-    Context: {context}
+    Calculate the optimal 'total_teaching_hours' required to teach this entire subject effectively. 
+    Determine the 'subject_type' (e.g., Theory, Practical, Skill Enhancement).
+    For the resources/textbooks mentioned, generate relevant search links or specific URL formats for notes and video tutorials.
+    Extract the content and key concepts for exactly 5 modules. Then, generate an hourly teaching plan for each module based on its concepts.
     
-    Requirements:
-    1. PRE-CLASS NOTES: Deep, hourly-basis theoretical notes formatted in Markdown.
-    2. POST-CLASS NOTES: Summary, practical applications, and review notes formatted in Markdown.
-    3. PRE-CLASS MCQs: Exactly {pre_low} Low, {pre_mid} Medium, and {pre_hard} Hard questions.
-    4. POST-CLASS MCQs: Exactly {post_low} Low, {post_mid} Medium, and {post_hard} Hard questions.
+    Syllabus Text:
+    {text}
     
-    Output strictly in the following JSON format without any additional conversational text or markdown code blocks wrapped around it. Just the pure JSON object:
+    Respond STRICTLY in the following JSON format. Do not include any markdown formatting blocks (like ```json) or conversational text.
     {{
-        "pre_class_notes": "markdown string",
-        "post_class_notes": "markdown string",
-        "pre_class_mcqs": [ {{"id": "pre_1", "question": "...", "options": ["A", "B", "C", "D"], "answer": "A"}} ],
-        "post_class_mcqs": [ {{"id": "post_1", "question": "...", "options": ["A", "B", "C", "D"], "answer": "A"}} ]
+        "metadata": {{
+            "subject_name": "extracted name",
+            "subject_code": "extracted code",
+            "num_modules": 5,
+            "total_teaching_hours": "calculated hours",
+            "subject_type": "determined type"
+        }},
+        "outcomes": {{
+            "co": ["CO1: ...", "CO2: ..."],
+            "po": ["PO1: ...", "PO2: ..."]
+        }},
+        "resources": [
+            {{"name": "Textbook 1 Name", "notes_link": "https://...", "video_link": "https://..."}}
+        ],
+        "modules": [
+            {{
+                "module_num": 1,
+                "content": "Full extracted content of module 1...",
+                "key_concepts": "Bullet points of key concepts...",
+                "hourly_plan": "Hour 1: Concept A \\nHour 2: Concept B..."
+            }},
+            // ... repeat exactly up to module 5
+        ]
     }}
     """)
     
     chain = prompt | llm
-    response = chain.invoke({
-        "module_title": module_title,
-        "context": context,
-        "pre_low": config["pre_low"], "pre_mid": config["pre_mid"], "pre_hard": config["pre_hard"],
-        "post_low": config["post_low"], "post_mid": config["post_mid"], "post_hard": config["post_hard"]
-    })
-    
     try:
+        response = chain.invoke({"text": text_content})
         content = response.content
         json_str = content[content.find("{"):content.rfind("}")+1]
         return json.loads(json_str)
     except Exception as e:
-        st.error(f"Failed to parse Groq output. Ensure the model returned valid JSON. Error: {e}")
+        st.error(f"Failed to parse LLM output. Error: {e}")
         return None
 
-def extract_syllabus_structure(raw_text: str, college: str, uni: str):
-    return {
-        "subject_name": "Artificial Intelligence & Machine Learning",
-        "subject_code": "21CS71",
-        "total_modules": 3,
-        "modules": [
-            {
-                "id": 1,
-                "title": "Module 1: Foundations of Search Algorithms",
-                "estimated_hours": "3 Hours 30 Mins",
-                "submodules": ["Uninformed Search Strategies", "Informed Heuristic Search"],
-            },
-            {
-                "id": 2,
-                "title": "Module 2: Knowledge Representation & Logic",
-                "estimated_hours": "2 Hours 45 Mins",
-                "submodules": ["Propositional Logic & Inference", "First-Order Predicate Calculus"],
-            },
-            {
-                "id": 3,
-                "title": "Module 3: Supervised Machine Learning",
-                "estimated_hours": "4 Hours 15 Mins",
-                "submodules": ["Linear & Logistic Regression", "Decision Trees & Ensemble Methods"],
-            },
-        ],
-    }
-
-
 # -----------------------------------------------------------------------------
-# 4. SIDEBAR NAVIGATION
+# 4. MAIN UI LAYOUT
 # -----------------------------------------------------------------------------
-st.sidebar.title("📚 EduPlatform POC")
-groq_api_key = st.sidebar.text_input("Groq API Key", type="password", help="Required for content generation.")
-portal_selection = st.sidebar.radio("Navigate Portals", ["🏛️ Faculty Portal", "👨‍🎓 Student Portal"])
+st.title("📚 Intelligent Faculty Curriculum Planner")
+groq_api_key = st.sidebar.text_input("Groq API Key", type="password")
 
+# --- STEP 1: INPUTS ---
+st.header("Step 1: Course Configuration & Upload")
+with st.container(border=True):
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        college = st.text_input("College Name")
+        sem = st.text_input("Semester Name / Number")
+    with col2:
+        university = st.text_input("University Name")
+        subject = st.text_input("Subject Name")
+    with col3:
+        department = st.text_input("Department Name")
+        sub_code = st.text_input("Subject Code")
+        
+    uploaded_file = st.file_uploader("Upload Syllabus Document (PDF or Word)", type=["pdf", "docx", "doc"])
 
-# -----------------------------------------------------------------------------
-# 5. FACULTY PORTAL WORKFLOW
-# -----------------------------------------------------------------------------
-if portal_selection == "🏛️ Faculty Portal":
-    st.title("Faculty Curriculum & Content Management")
-    tab1, tab2 = st.tabs(["1. Data Ingestion & Extraction", "2. Groq Notes & MCQ Generation"])
-
-    # TAB 1: PDF Upload & View
-    with tab1:
-        st.subheader("Step 1: Course Details & Syllabus Ingestion")
-        c1, c2 = st.columns(2)
-        with c1:
-            college_input = st.text_input("College Name", value="PES University")
-            uni_input = st.text_input("University Name", value="Autonomous / State Board")
-        with c2:
-            uploaded_pdf = st.file_uploader("Upload Syllabus Document (PDF)", type=["pdf"])
-
-        if uploaded_pdf:
-            st.session_state.faculty_data["pdf_bytes"] = uploaded_pdf.getvalue()
-
-        if st.button("Extract Syllabus & Structure Modules", type="primary"):
-            if st.session_state.faculty_data["pdf_bytes"]:
-                raw_text = extract_pdf_text(st.session_state.faculty_data["pdf_bytes"])
-                extracted = extract_syllabus_structure(raw_text, college_input, uni_input)
-                st.session_state.faculty_data["extracted_meta"] = extracted
-                st.session_state.faculty_data["modules"] = extracted["modules"]
-                st.success("Syllabus processed successfully!")
-            else:
-                st.error("Please upload a PDF file.")
-
-        if st.session_state.faculty_data["extracted_meta"]:
-            st.markdown("---")
-            st.subheader("Step 2: Temporal Organization & Extracted Metadata")
-            meta = st.session_state.faculty_data["extracted_meta"]
-
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Subject Name", meta["subject_name"])
-            m2.metric("Subject Code", meta["subject_code"])
-            m3.metric("Total Modules", meta["total_modules"])
-
-            st.markdown("#### Module Breakdown & Estimated Teaching Hours")
-            for mod in st.session_state.faculty_data["modules"]:
-                with st.expander(f"📌 {mod['title']} — (Estimated: {mod['estimated_hours']})", expanded=True):
-                    st.write("**Sub-modules:**")
-                    for sm in mod["submodules"]:
-                        st.write(f"- {sm}")
-
-        if st.session_state.faculty_data["pdf_bytes"]:
-            st.markdown("---")
-            st.markdown("### Uploaded Syllabus Preview")
-            display_pdf(st.session_state.faculty_data["pdf_bytes"])
-
-
-    # TAB 2: Groq Generation & Settings
-    with tab2:
-        st.subheader("Step 3: Generate Deep Notes & MCQs (Pre & Post Class)")
-        if not st.session_state.faculty_data["modules"]:
-            st.warning("Please extract a syllabus in Tab 1 first.")
-        else:
-            selected_mod_idx = st.selectbox(
-                "Select Module to Generate:",
-                range(len(st.session_state.faculty_data["modules"])),
-                format_func=lambda i: st.session_state.faculty_data["modules"][i]["title"],
-            )
-            current_mod = st.session_state.faculty_data["modules"][selected_mod_idx]
-            
-            st.markdown("#### MCQ Configuration")
-            col_pre, col_post = st.columns(2)
-            with col_pre:
-                st.write("**Pre-Class MCQs**")
-                pre_l = st.number_input("Low Difficulty", min_value=0, value=2, key="pl")
-                pre_m = st.number_input("Medium Difficulty", min_value=0, value=2, key="pm")
-                pre_h = st.number_input("Hard Difficulty", min_value=0, value=1, key="ph")
-            with col_post:
-                st.write("**Post-Class MCQs**")
-                post_l = st.number_input("Low Difficulty", min_value=0, value=1, key="pol")
-                post_m = st.number_input("Medium Difficulty", min_value=0, value=2, key="pom")
-                post_h = st.number_input("Hard Difficulty", min_value=0, value=2, key="poh")
-
-            if st.button("Generate Content with Groq", type="primary"):
-                if not groq_api_key:
-                    st.error("Please enter your Groq API Key in the sidebar.")
-                else:
-                    with st.spinner("Groq is analyzing syllabus and generating Notes & MCQs..."):
-                        config = {
-                            "pre_low": pre_l, "pre_mid": pre_m, "pre_hard": pre_h,
-                            "post_low": post_l, "post_mid": post_m, "post_hard": post_h
-                        }
-                        
-                        result = generate_content_with_groq(groq_api_key, current_mod["title"], " ".join(current_mod["submodules"]), config)
-                        
-                        if result:
-                            pre_file = save_notes_to_file(current_mod["id"], "pre_class", result["pre_class_notes"])
-                            post_file = save_notes_to_file(current_mod["id"], "post_class", result["post_class_notes"])
-                            
-                            st.session_state.faculty_data["modules"][selected_mod_idx]["pre_notes_file"] = pre_file
-                            st.session_state.faculty_data["modules"][selected_mod_idx]["post_notes_file"] = post_file
-                            st.session_state.faculty_data["modules"][selected_mod_idx]["pre_mcqs"] = result["pre_class_mcqs"]
-                            st.session_state.faculty_data["modules"][selected_mod_idx]["post_mcqs"] = result["post_class_mcqs"]
-                            
-                            st.success(f"Content generated and saved successfully to `{NOTES_DIR}`!")
-
-
-# -----------------------------------------------------------------------------
-# 6. STUDENT PORTAL WORKFLOW
-# -----------------------------------------------------------------------------
-elif portal_selection == "👨‍🎓 Student Portal":
-    st.title("Student Interactive Learning Dashboard")
-
-    if not st.session_state.faculty_data["modules"] or "pre_notes_file" not in st.session_state.faculty_data["modules"][0]:
-        st.info("No content available yet. Faculty must generate notes via Groq first.")
+# --- STEP 2 to 5 TRIGGER ---
+if st.button("Extract Sub Info", use_container_width=True):
+    if not groq_api_key:
+        st.error("Please enter your Groq API Key in the sidebar.")
+    elif not uploaded_file:
+        st.error("Please upload a syllabus file.")
     else:
-        active_module_idx = st.selectbox(
-            "Select Course Module:",
-            range(len(st.session_state.faculty_data["modules"])),
-            format_func=lambda i: st.session_state.faculty_data["modules"][i]["title"],
-        )
-        active_module = st.session_state.faculty_data["modules"][active_module_idx]
+        with st.spinner("Analyzing syllabus and generating curriculum plan..."):
+            raw_text = extract_text(uploaded_file)
+            st.session_state.extracted_data = process_syllabus_with_groq(groq_api_key, raw_text)
+            if st.session_state.extracted_data:
+                # Override extracted names/codes if manually provided in Step 1
+                if subject: st.session_state.extracted_data["metadata"]["subject_name"] = subject
+                if sub_code: st.session_state.extracted_data["metadata"]["subject_code"] = sub_code
+                st.success("Extraction Complete!")
 
-        tab_pre, tab_post = st.tabs(["🌅 Pre-Class Learning & Assessment", "🌇 Post-Class Review & Assessment"])
-
-        def render_student_view(notes_file, mcqs, phase_key):
-            col1, col2, col3 = st.columns([1.5, 1.2, 1.3], gap="medium")
+# -----------------------------------------------------------------------------
+# DYNAMIC UI RENDER (Displays only after extraction)
+# -----------------------------------------------------------------------------
+if st.session_state.extracted_data:
+    data = st.session_state.extracted_data
+    
+    st.markdown("---")
+    
+    # --- STEP 2: METADATA ---
+    st.header("Step 2: Extracted Subject Information")
+    meta = data.get("metadata", {})
+    st.markdown(
+        f"""
+        <div class="header-box">
+            <strong>Subject Name:</strong> {meta.get('subject_name', 'N/A')} &nbsp;|&nbsp; 
+            <strong>Subject Code:</strong> {meta.get('subject_code', 'N/A')} <br/>
+            <strong>Total Modules:</strong> {meta.get('num_modules', '5')} &nbsp;|&nbsp; 
+            <strong>Subject Type:</strong> {meta.get('subject_type', 'N/A')} <br/>
+            <strong>Estimated Teaching Hours:</strong> {meta.get('total_teaching_hours', 'N/A')}
+        </div>
+        """, unsafe_allow_html=True
+    )
+    
+    # --- STEP 3: CO & PO ---
+    st.header("Step 3: Course & Program Outcomes")
+    outcomes = data.get("outcomes", {})
+    co_col, po_col = st.columns(2)
+    with co_col:
+        st.subheader("Course Outcomes (CO)")
+        for co in outcomes.get("co", []):
+            st.write(f"- {co}")
+    with po_col:
+        st.subheader("Program Outcomes (PO)")
+        for po in outcomes.get("po", []):
+            st.write(f"- {po}")
             
-            with col1:
-                st.subheader(f"📖 {phase_key} Notes")
-                notes_content = load_notes_from_file(notes_file)
-                st.markdown(f'<div class="notes-box">{notes_content}</div>', unsafe_allow_html=True)
-
-            with col2:
-                st.subheader(f"📝 {phase_key} MCQs")
-                if not mcqs:
-                    st.write("No questions available.")
-                for idx, mcq in enumerate(mcqs, start=1):
-                    st.markdown(
-                        f"""
-                        <div class="mcq-card">
-                            <strong>Q{idx}: {mcq['question']}</strong><br/>
-                            <small>A. {mcq['options'][0]} | B. {mcq['options'][1]}<br/>
-                            C. {mcq['options'][2]} | D. {mcq['options'][3]}</small>
-                        </div>
-                        """, unsafe_allow_html=True
-                    )
-
-            with col3:
-                st.subheader("✍️ Your Responses")
-                with st.form(key=f"{phase_key}_form_{active_module['id']}"):
-                    user_answers = {}
-                    for idx, mcq in enumerate(mcqs, start=1):
-                        user_answers[mcq["id"]] = st.radio(f"Q{idx}:", options=mcq["options"], key=f"r_{phase_key}_{mcq['id']}")
-                    
-                    if st.form_submit_button("Submit Assessment", type="primary"):
-                        if mcqs:
-                            score = sum([1 for mcq in mcqs if user_answers[mcq["id"]] == mcq["answer"]])
-                            st.success(f"Assessment Submitted! You scored {score}/{len(mcqs)}")
-
-        with tab_pre:
-            if "pre_notes_file" in active_module:
-                render_student_view(active_module["pre_notes_file"], active_module.get("pre_mcqs", []), "Pre-Class")
-            else:
-                st.warning("Pre-class content has not been generated for this module yet.")
-            
-        with tab_post:
-            if "post_notes_file" in active_module:
-                render_student_view(active_module["post_notes_file"], active_module.get("post_mcqs", []), "Post-Class")
-            else:
-                st.warning("Post-class content has not been generated for this module yet.")
+    st.markdown("---")
+    
+    # --- STEP 4: RESOURCES ---
+    st.header("Step 4: Learning Resources")
+    resources = data.get("resources", [])
+    if resources:
+        for res in resources:
+            st.markdown(f"**📖 {res.get('name', 'Resource')}**")
+            st.markdown(f"- **Notes:** [View Reference Material]({res.get('notes_link', '#')})")
+            st.markdown(f"- **Videos:** [Watch Tutorials]({res.get('video_link', '#')})")
+    else:
+        st.info("No explicit textbooks or resources found in the syllabus.")
+        
+    st.markdown("---")
+    
+    # --- STEP 5: 3-COLUMN MODULE PLANNER ---
+    st.header("Step 5: Interactive Module Content & Hourly Planner")
+    st.caption("Review the extracted content. You can modify any text box below; edits will remain in your current session.")
+    
+    modules = data.get("modules", [])
+    
+    # Render exactly 5 rows (one for each module)
+    for i, mod in enumerate(modules[:5]):
+        st.markdown(f"### Module {i+1}")
+        
+        # 3-Column Layout per Row
+        c1, c2, c3 = st.columns(3, gap="medium")
+        
+        with c1:
+            st.text_area(
+                "Extracted Content", 
+                value=mod.get("content", ""), 
+                height=300, 
+                key=f"content_mod_{i}"
+            )
+        with c2:
+            st.text_area(
+                "Key Concepts", 
+                value=mod.get("key_concepts", ""), 
+                height=300, 
+                key=f"concepts_mod_{i}"
+            )
+        with c3:
+            st.text_area(
+                "Hourly Teaching Plan", 
+                value=mod.get("hourly_plan", ""), 
+                height=300, 
+                key=f"plan_mod_{i}"
+            )
+        st.divider()
