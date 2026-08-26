@@ -17,27 +17,72 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# STRICT LIGHT THEME CSS: White Background, Black Buttons, White Button Text
 st.markdown(
     """
     <style>
-    .main { background-color: #0e1117; color: #fafafa; }
-    .stButton>button { border-radius: 8px; font-weight: 600; }
+    /* Force App Background to White */
+    .stApp, .main {
+        background-color: #ffffff !important;
+    }
+    
+    /* Force all general text, headers, and labels to Black */
+    h1, h2, h3, h4, h5, h6, p, span, div, label, li {
+        color: #000000 !important;
+    }
+
+    /* Force Sidebar Background and Text */
+    [data-testid="stSidebar"] {
+        background-color: #f8f9fa !important;
+    }
+    [data-testid="stSidebar"] * {
+        color: #000000 !important;
+    }
+
+    /* Button Styling: Black background, White text */
+    .stButton > button {
+        background-color: #000000 !important;
+        color: #ffffff !important;
+        border-radius: 8px;
+        font-weight: 600;
+        border: 1px solid #000000;
+        transition: 0.2s;
+    }
+    .stButton > button:hover {
+        background-color: #333333 !important;
+        color: #ffffff !important;
+        border: 1px solid #333333;
+    }
+    .stButton > button * {
+        color: #ffffff !important;
+    }
+
+    /* Input Fields (Text boxes, Number inputs) */
+    .stTextInput input, .stNumberInput input {
+        color: #000000 !important;
+        background-color: #ffffff !important;
+        border: 1px solid #cccccc !important;
+    }
+
+    /* Custom Containers */
     .notes-box {
-        background-color: #1e1e2e;
+        background-color: #f4f4f5 !important;
         padding: 20px;
         border-radius: 8px;
-        border-left: 5px solid #2563eb;
+        border-left: 5px solid #000000;
         height: 520px;
         overflow-y: auto;
-        color: #ffffff;
+        color: #000000 !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
     .mcq-card {
-        background-color: #1e1e2e;
+        background-color: #ffffff !important;
         padding: 16px;
         border-radius: 8px;
-        border: 1px solid #333;
+        border: 1px solid #000000;
         margin-bottom: 12px;
-        color: #ffffff;
+        color: #000000 !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
     </style>
     """,
@@ -72,14 +117,14 @@ if "rag_chat_history" not in st.session_state:
 # 3. HELPER FUNCTIONS
 # -----------------------------------------------------------------------------
 def display_pdf(pdf_bytes):
-    """Displays the uploaded PDF in the Streamlit UI."""
+    """Displays the uploaded PDF. Relies on the download button if browser blocks inline."""
     base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
     
-    # Using <embed> is generally more reliable for inline PDFs in Streamlit than <iframe>
-    pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf" />'
+    # Try rendering via iframe (some cloud environments block this)
+    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf"></iframe>'
     st.markdown(pdf_display, unsafe_allow_html=True)
     
-    # Fallback download button just in case the browser blocks the inline embed
+    st.info("ℹ️ If the PDF above is blank, your browser's security settings are blocking it. Use the button below to view it.")
     st.download_button(
         label="Download / View PDF externally",
         data=pdf_bytes,
@@ -88,13 +133,11 @@ def display_pdf(pdf_bytes):
     )
 
 def extract_pdf_text(pdf_bytes) -> str:
-    """Extracts text while stripping problematic leading whitespace bytes."""
     cleaned_bytes = pdf_bytes.lstrip() 
     pdf_reader = PdfReader(io.BytesIO(cleaned_bytes))
     return "\n".join([page.extract_text() for page in pdf_reader.pages if page.extract_text()])
 
 def save_notes_to_file(module_id, note_type, content):
-    """Saves generated notes to a local folder."""
     filename = f"{NOTES_DIR}/module_{module_id}_{note_type}.md"
     with open(filename, "w", encoding="utf-8") as f:
         f.write(content)
@@ -107,7 +150,6 @@ def load_notes_from_file(filepath):
     return "Notes not found."
 
 def generate_content_with_groq(api_key, module_title, context, config):
-    """Calls Groq to generate notes and MCQs based on faculty configuration."""
     llm = ChatGroq(groq_api_key=api_key, model_name="mixtral-8x7b-32768")
     
     prompt = PromptTemplate.from_template("""
@@ -147,7 +189,6 @@ def generate_content_with_groq(api_key, module_title, context, config):
         return None
 
 def extract_syllabus_structure(raw_text: str, college: str, uni: str):
-    """Mocks the LangChain extraction of modules and temporal hours."""
     return {
         "subject_name": "Artificial Intelligence & Machine Learning",
         "subject_code": "21CS71",
@@ -173,7 +214,6 @@ def extract_syllabus_structure(raw_text: str, college: str, uni: str):
             },
         ],
     }
-
 
 # -----------------------------------------------------------------------------
 # 4. SIDEBAR NAVIGATION
@@ -213,7 +253,6 @@ if portal_selection == "🏛️ Faculty Portal":
             else:
                 st.error("Please upload a PDF file.")
 
-        # Display Extracted Metadata & Temporal Organization (Restored Feature)
         if st.session_state.faculty_data["extracted_meta"]:
             st.markdown("---")
             st.subheader("Step 2: Temporal Organization & Extracted Metadata")
@@ -231,7 +270,6 @@ if portal_selection == "🏛️ Faculty Portal":
                     for sm in mod["submodules"]:
                         st.write(f"- {sm}")
 
-        # Display PDF directly in UI
         if st.session_state.faculty_data["pdf_bytes"]:
             st.markdown("---")
             st.markdown("### Uploaded Syllabus Preview")
@@ -277,11 +315,9 @@ if portal_selection == "🏛️ Faculty Portal":
                         result = generate_content_with_groq(groq_api_key, current_mod["title"], " ".join(current_mod["submodules"]), config)
                         
                         if result:
-                            # Save Notes to local files
                             pre_file = save_notes_to_file(current_mod["id"], "pre_class", result["pre_class_notes"])
                             post_file = save_notes_to_file(current_mod["id"], "post_class", result["post_class_notes"])
                             
-                            # Save paths and MCQs to session state
                             st.session_state.faculty_data["modules"][selected_mod_idx]["pre_notes_file"] = pre_file
                             st.session_state.faculty_data["modules"][selected_mod_idx]["post_notes_file"] = post_file
                             st.session_state.faculty_data["modules"][selected_mod_idx]["pre_mcqs"] = result["pre_class_mcqs"]
@@ -306,10 +342,8 @@ elif portal_selection == "👨‍🎓 Student Portal":
         )
         active_module = st.session_state.faculty_data["modules"][active_module_idx]
 
-        # Use tabs to separate Pre-Class and Post-Class experiences
         tab_pre, tab_post = st.tabs(["🌅 Pre-Class Learning & Assessment", "🌇 Post-Class Review & Assessment"])
 
-        # Function to render the 3-column layout
         def render_student_view(notes_file, mcqs, phase_key):
             col1, col2, col3 = st.columns([1.5, 1.2, 1.3], gap="medium")
             
@@ -345,14 +379,12 @@ elif portal_selection == "👨‍🎓 Student Portal":
                             score = sum([1 for mcq in mcqs if user_answers[mcq["id"]] == mcq["answer"]])
                             st.success(f"Assessment Submitted! You scored {score}/{len(mcqs)}")
 
-        # Render Pre-Class Tab
         with tab_pre:
             if "pre_notes_file" in active_module:
                 render_student_view(active_module["pre_notes_file"], active_module.get("pre_mcqs", []), "Pre-Class")
             else:
                 st.warning("Pre-class content has not been generated for this module yet.")
             
-        # Render Post-Class Tab
         with tab_post:
             if "post_notes_file" in active_module:
                 render_student_view(active_module["post_notes_file"], active_module.get("post_mcqs", []), "Post-Class")
