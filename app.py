@@ -62,11 +62,10 @@ def extract_text(uploaded_file) -> str:
 def process_syllabus_with_groq(api_key, text_content):
     """Uses Groq to extract syllabus metadata, outcomes, resources, and module plans in JSON."""
     
-    # Initialize the model (using a fast, supported model)
-    llm = ChatGroq(groq_api_key=api_key, model_name="llama-3.3-70b-versatile", temperature=0.1)
+    # 1. Use the currently supported active model
+    llm = ChatGroq(groq_api_key=api_key, model_name="openai/gpt-oss-120b", temperature=0.1)
     
-    # 🚨 CRITICAL FIX: Truncate the text to avoid the 8,000 TPM rate limit
-    # 24,000 characters is roughly 5,000 - 6,000 tokens. 
+    # 2. Truncate the text to stay safely under the 8,000 TPM limit (approx 24,000 characters)
     safe_text_content = text_content[:24000]
     
     prompt = PromptTemplate.from_template("""
@@ -109,7 +108,7 @@ def process_syllabus_with_groq(api_key, text_content):
     
     chain = prompt | llm
     try:
-        # Pass the truncated text instead of the full document
+        # Pass the truncated text
         response = chain.invoke({"text": safe_text_content})
         content = response.content
         json_str = content[content.find("{"):content.rfind("}")+1]
