@@ -63,7 +63,7 @@ def process_syllabus_with_groq(api_key, text_content):
     """Uses Groq to extract syllabus metadata, outcomes, resources, and module plans in JSON."""
     
     # Change the model_name to the currently active 'llama-3.3-70b-versatile'
-    llm = ChatGroq(groq_api_key=api_key, model_name="llama-3.3-70b-versatile", temperature=0.1)
+    llm = ChatGroq(groq_api_key=api_key, model_name="openai/gpt-oss-120b", temperature=0.1)
     
     prompt = PromptTemplate.from_template("""
     You are an expert academic planner and AI curriculum designer. Analyze the following syllabus document and extract the details.
