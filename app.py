@@ -116,9 +116,9 @@ def load_notes_from_file(filepath):
     return "Notes not found."
 
 def generate_content_with_groq(api_key, module_title, context, config):
-    """Calls Groq using the currently supported Llama 3 model."""
-    # Changed model from decommissioned mixtral to llama3-70b-8192
-    llm = ChatGroq(groq_api_key=api_key, model_name="llama3-70b-8192", temperature=0.2)
+    """Calls Groq using the currently supported GPT-OSS model."""
+    # Changed model to the currently supported openai/gpt-oss-120b
+    llm = ChatGroq(groq_api_key=api_key, model_name="openai/gpt-oss-120b", temperature=0.2)
     
     prompt = PromptTemplate.from_template("""
     You are an expert AI curriculum developer. Based on the syllabus context provided, generate the following for the module: '{module_title}'
@@ -150,7 +150,6 @@ def generate_content_with_groq(api_key, module_title, context, config):
     
     try:
         content = response.content
-        # Better extraction to ensure we grab the JSON safely
         json_str = content[content.find("{"):content.rfind("}")+1]
         return json.loads(json_str)
     except Exception as e:
