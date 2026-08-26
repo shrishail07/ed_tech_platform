@@ -67,23 +67,30 @@ if "submission_result" not in st.session_state:
 if "rag_chat_history" not in st.session_state:
     st.session_state.rag_chat_history = []
 
+
 # -----------------------------------------------------------------------------
 # 3. HELPER FUNCTIONS
 # -----------------------------------------------------------------------------
 def display_pdf(pdf_bytes):
     """Displays the uploaded PDF in the Streamlit UI."""
     base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf"></iframe>'
+    
+    # Using <embed> is generally more reliable for inline PDFs in Streamlit than <iframe>
+    pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf" />'
     st.markdown(pdf_display, unsafe_allow_html=True)
+    
+    # Fallback download button just in case the browser blocks the inline embed
+    st.download_button(
+        label="Download / View PDF externally",
+        data=pdf_bytes,
+        file_name="uploaded_syllabus.pdf",
+        mime="application/pdf"
+    )
 
 def extract_pdf_text(pdf_bytes) -> str:
-    # 1. Strip leading whitespace bytes to fix the "invalid pdf header" error
+    """Extracts text while stripping problematic leading whitespace bytes."""
     cleaned_bytes = pdf_bytes.lstrip() 
-    
-    # 2. Read the cleaned bytes
     pdf_reader = PdfReader(io.BytesIO(cleaned_bytes))
-    
-    # 3. Extract text
     return "\n".join([page.extract_text() for page in pdf_reader.pages if page.extract_text()])
 
 def save_notes_to_file(module_id, note_type, content):
@@ -132,7 +139,6 @@ def generate_content_with_groq(api_key, module_title, context, config):
     })
     
     try:
-        # Extract JSON from response
         content = response.content
         json_str = content[content.find("{"):content.rfind("}")+1]
         return json.loads(json_str)
@@ -140,14 +146,34 @@ def generate_content_with_groq(api_key, module_title, context, config):
         st.error(f"Failed to parse Groq output. Error: {e}")
         return None
 
-# (Mock extraction function - keep your existing logic here)
 def extract_syllabus_structure(raw_text: str, college: str, uni: str):
+    """Mocks the LangChain extraction of modules and temporal hours."""
     return {
         "subject_name": "Artificial Intelligence & Machine Learning",
         "subject_code": "21CS71",
-        "total_modules": 1,
-        "modules": [{"id": 1, "title": "Module 1: Foundations of Search Algorithms", "estimated_hours": "3 Hours 30 Mins", "submodules": ["Uninformed Search Strategies", "Informed Heuristic Search"]}],
+        "total_modules": 3,
+        "modules": [
+            {
+                "id": 1,
+                "title": "Module 1: Foundations of Search Algorithms",
+                "estimated_hours": "3 Hours 30 Mins",
+                "submodules": ["Uninformed Search Strategies", "Informed Heuristic Search"],
+            },
+            {
+                "id": 2,
+                "title": "Module 2: Knowledge Representation & Logic",
+                "estimated_hours": "2 Hours 45 Mins",
+                "submodules": ["Propositional Logic & Inference", "First-Order Predicate Calculus"],
+            },
+            {
+                "id": 3,
+                "title": "Module 3: Supervised Machine Learning",
+                "estimated_hours": "4 Hours 15 Mins",
+                "submodules": ["Linear & Logistic Regression", "Decision Trees & Ensemble Methods"],
+            },
+        ],
     }
+
 
 # -----------------------------------------------------------------------------
 # 4. SIDEBAR NAVIGATION
@@ -155,6 +181,7 @@ def extract_syllabus_structure(raw_text: str, college: str, uni: str):
 st.sidebar.title("📚 EduPlatform POC")
 groq_api_key = st.sidebar.text_input("Groq API Key", type="password", help="Required for content generation.")
 portal_selection = st.sidebar.radio("Navigate Portals", ["🏛️ Faculty Portal", "👨‍🎓 Student Portal"])
+
 
 # -----------------------------------------------------------------------------
 # 5. FACULTY PORTAL WORKFLOW
@@ -186,14 +213,34 @@ if portal_selection == "🏛️ Faculty Portal":
             else:
                 st.error("Please upload a PDF file.")
 
+        # Display Extracted Metadata & Temporal Organization (Restored Feature)
+        if st.session_state.faculty_data["extracted_meta"]:
+            st.markdown("---")
+            st.subheader("Step 2: Temporal Organization & Extracted Metadata")
+            meta = st.session_state.faculty_data["extracted_meta"]
+
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Subject Name", meta["subject_name"])
+            m2.metric("Subject Code", meta["subject_code"])
+            m3.metric("Total Modules", meta["total_modules"])
+
+            st.markdown("#### Module Breakdown & Estimated Teaching Hours")
+            for mod in st.session_state.faculty_data["modules"]:
+                with st.expander(f"📌 {mod['title']} — (Estimated: {mod['estimated_hours']})", expanded=True):
+                    st.write("**Sub-modules:**")
+                    for sm in mod["submodules"]:
+                        st.write(f"- {sm}")
+
         # Display PDF directly in UI
         if st.session_state.faculty_data["pdf_bytes"]:
+            st.markdown("---")
             st.markdown("### Uploaded Syllabus Preview")
             display_pdf(st.session_state.faculty_data["pdf_bytes"])
 
+
     # TAB 2: Groq Generation & Settings
     with tab2:
-        st.subheader("Step 2: Generate Deep Notes & MCQs (Pre & Post Class)")
+        st.subheader("Step 3: Generate Deep Notes & MCQs (Pre & Post Class)")
         if not st.session_state.faculty_data["modules"]:
             st.warning("Please extract a syllabus in Tab 1 first.")
         else:
@@ -242,6 +289,7 @@ if portal_selection == "🏛️ Faculty Portal":
                             
                             st.success(f"Content generated and saved successfully to `{NOTES_DIR}`!")
 
+
 # -----------------------------------------------------------------------------
 # 6. STUDENT PORTAL WORKFLOW
 # -----------------------------------------------------------------------------
@@ -272,6 +320,8 @@ elif portal_selection == "👨‍🎓 Student Portal":
 
             with col2:
                 st.subheader(f"📝 {phase_key} MCQs")
+                if not mcqs:
+                    st.write("No questions available.")
                 for idx, mcq in enumerate(mcqs, start=1):
                     st.markdown(
                         f"""
@@ -291,13 +341,20 @@ elif portal_selection == "👨‍🎓 Student Portal":
                         user_answers[mcq["id"]] = st.radio(f"Q{idx}:", options=mcq["options"], key=f"r_{phase_key}_{mcq['id']}")
                     
                     if st.form_submit_button("Submit Assessment", type="primary"):
-                        score = sum([1 for mcq in mcqs if user_answers[mcq["id"]] == mcq["answer"]])
-                        st.success(f"Assessment Submitted! You scored {score}/{len(mcqs)}")
+                        if mcqs:
+                            score = sum([1 for mcq in mcqs if user_answers[mcq["id"]] == mcq["answer"]])
+                            st.success(f"Assessment Submitted! You scored {score}/{len(mcqs)}")
 
         # Render Pre-Class Tab
         with tab_pre:
-            render_student_view(active_module["pre_notes_file"], active_module.get("pre_mcqs", []), "Pre-Class")
+            if "pre_notes_file" in active_module:
+                render_student_view(active_module["pre_notes_file"], active_module.get("pre_mcqs", []), "Pre-Class")
+            else:
+                st.warning("Pre-class content has not been generated for this module yet.")
             
         # Render Post-Class Tab
         with tab_post:
-            render_student_view(active_module["post_notes_file"], active_module.get("post_mcqs", []), "Post-Class")
+            if "post_notes_file" in active_module:
+                render_student_view(active_module["post_notes_file"], active_module.get("post_mcqs", []), "Post-Class")
+            else:
+                st.warning("Post-class content has not been generated for this module yet.")
