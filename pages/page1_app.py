@@ -119,11 +119,12 @@ def process_syllabus_with_groq(api_key, text_content):
  # -----------------------------------------------------------------------------
  # 4. MAIN UI LAYOUT
  # -----------------------------------------------------------------------------
- st.title("📚 Intelligent Faculty Curriculum Planner")
- groq_api_key = st.sidebar.text_input("Groq API Key", type="password")
+st.title("📚 Intelligent Faculty Curriculum Planner")
+
+groq_api_key = st.sidebar.text_input("Groq API Key", type="password")
 
  # --- STEP 1: INPUTS ---
- st.header("Step 1: Course Configuration & Upload")
+st.header("Step 1: Course Configuration & Upload")
  with st.container(border=True):
      col1, col2, col3 = st.columns(3)
      with col1:
@@ -139,7 +140,7 @@ def process_syllabus_with_groq(api_key, text_content):
      uploaded_file = st.file_uploader("Upload Syllabus Document (PDF or Word)", type=["pdf", "docx", "doc"])
 
  # --- STEP 2 to 5 TRIGGER ---
- if st.button("Extract Sub Info", use_container_width=True):
+if st.button("Extract Sub Info", use_container_width=True):
      if not groq_api_key:
          st.error("Please enter your Groq API Key in the sidebar.")
      elif not uploaded_file:
@@ -157,7 +158,7 @@ def process_syllabus_with_groq(api_key, text_content):
  # -----------------------------------------------------------------------------
  # DYNAMIC UI RENDER (Displays only after extraction)
  # -----------------------------------------------------------------------------
- if st.session_state.extracted_data:
+if st.session_state.extracted_data:
      data = st.session_state.extracted_data
     
      st.markdown("---")
