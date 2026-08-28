@@ -1,6 +1,6 @@
 import streamlit as st
 import base64
-
+import streamlit.components.v1 as components
 # -----------------------------------------------------------------------------
 # 1. PAGE CONFIGURATION & STYLING
 # -----------------------------------------------------------------------------
@@ -42,14 +42,31 @@ st.markdown(
 #     pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf" />'
 #     st.markdown(pdf_display, unsafe_allow_html=True)
 
+
 def display_pdf(pdf_bytes):
-    """Embeds the PDF directly into the Streamlit UI."""
+    """Embeds the PDF using a secure JS Blob to bypass Chrome's iframe restrictions."""
     base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
     
-    # Swapped <embed> for <iframe> which has better cross-browser compatibility
-    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}#toolbar=0" width="100%" height="600" type="application/pdf"></iframe>'
+    html_code = f"""
+    <!DOCTYPE html>
+    <html>
+    <body style="margin:0; padding:0; overflow:hidden;">
+        <iframe id="pdf_viewer" style="width:100%; height:600px; border:none;" src=""></iframe>
+        <script>
+            // Fetch the base64 string and convert it to a secure Blob URL natively
+            fetch('data:application/pdf;base64,{base64_pdf}')
+            .then(res => res.blob())
+            .then(blob => {{
+                const url = URL.createObjectURL(blob);
+                document.getElementById('pdf_viewer').src = url;
+            }});
+        </script>
+    </body>
+    </html>
+    """
     
-    st.markdown(pdf_display, unsafe_allow_html=True)
+    # Render the HTML component in Streamlit
+    components.html(html_code, height=610)
     
 def render_phase_content(phase_data):
     """Renders notes and files for a specific learning phase."""
