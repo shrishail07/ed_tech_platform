@@ -63,7 +63,9 @@ def process_syllabus_with_groq(api_key, text_content):
     """Uses Groq to extract syllabus metadata, outcomes, resources, and module plans in JSON."""
     
     llm = ChatGroq(groq_api_key=api_key, model_name="openai/gpt-oss-120b", temperature=0.1)
-    safe_text_content = text_content[:24000]
+    
+    # FIX 1: Truncate further to 18,000 characters to guarantee staying below 8,000 tokens
+    safe_text_content = text_content[:18000]
     
     prompt = PromptTemplate.from_template("""
     You are an expert academic planner and AI curriculum designer. Analyze the following syllabus document and extract the details.
@@ -77,6 +79,8 @@ def process_syllabus_with_groq(api_key, text_content):
     {text}
     
     Respond STRICTLY in the following JSON format. Do not include any markdown formatting blocks (like ```json) or conversational text.
+    IMPORTANT: You must escape all double quotes inside your string values (use \\"). Do not leave any unescaped quotes inside the JSON keys or values.
+    
     {{
         "metadata": {{
             "subject_name": "extracted name",
@@ -106,11 +110,24 @@ def process_syllabus_with_groq(api_key, text_content):
     chain = prompt | llm
     try:
         response = chain.invoke({"text": safe_text_content})
-        content = response.content
+        content = response.content.strip()
+        
+        # FIX 2: Strip away potential markdown blocks before attempting JSON parse
+        if content.startswith("```json"):
+            content = content[7:]
+        if content.startswith("```"):
+            content = content[3:]
+        if content.endswith("```"):
+            content = content[:-3]
+            
         json_str = content[content.find("{"):content.rfind("}")+1]
         return json.loads(json_str)
+        
+    except json.JSONDecodeError as e:
+        st.error(f"JSON Parsing Error: The AI generated malformed text. Please click Extract again. (Details: {e})")
+        return None
     except Exception as e:
-        st.error(f"Failed to parse LLM output. Error: {e}")
+        st.error(f"API Error: {e}")
         return None
 
 # -----------------------------------------------------------------------------
@@ -237,7 +254,6 @@ if st.session_state.extracted_data:
 
     # --- SAVE MODIFICATIONS BUTTON ---
     if st.button("Commit Changes", use_container_width=True):
-        # Maps the current text area values back into the global session dictionary
         for i in range(len(modules[:5])):
             st.session_state.extracted_data["modules"][i]["content"] = st.session_state[f"content_mod_{i}"]
             st.session_state.extracted_data["modules"][i]["key_concepts"] = st.session_state[f"concepts_mod_{i}"]
