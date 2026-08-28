@@ -379,22 +379,18 @@ if "all_subjects_data" not in st.session_state or not st.session_state.all_subje
     st.stop()
 
 def generate_ai_text(api_key, prompt_text):
-    """Helper function to call Groq LLM."""
+    """Helper function to call Groq LLM using the currently active model."""
     if not api_key:
         st.error("Please enter your Groq API Key in the sidebar.")
         return ""
     try:
-        llm = ChatGroq(groq_api_key=api_key, model_name="llama-3.3-70b-versatile", temperature=0.3)
+        # Using the same supported model that works in Page 1
+        llm = ChatGroq(groq_api_key=api_key, model_name="openai/gpt-oss-120b", temperature=0.3)
         response = llm.invoke(prompt_text)
         return response.content
     except Exception as e:
-        # Fallback if specific model fails or limits are hit
-        try:
-            llm = ChatGroq(groq_api_key=api_key, model_name="mixtral-8x7b-32768", temperature=0.3)
-            return llm.invoke(prompt_text).content
-        except Exception as fallback_e:
-            st.error(f"AI Generation Failed. Check API Key or Limits. Error: {fallback_e}")
-            return ""
+        st.error(f"AI Generation Failed. Check API Key or Limits. Error: {e}")
+        return ""
 
 # -----------------------------------------------------------------------------
 # 3. SIDEBAR & HEADER
