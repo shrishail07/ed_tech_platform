@@ -324,9 +324,10 @@
                     
 #                 st.write(f"- **{hr_key}**: {total_files} total files attached.")
 
+import io
 import streamlit as st
+from pypdf import PdfReader
 from langchain_groq import ChatGroq
-from langchain_core.prompts import PromptTemplate
 
 # -----------------------------------------------------------------------------
 # 1. PAGE CONFIGURATION & STYLING
@@ -340,8 +341,8 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    .main { background-color: #ffffff; color: #1f2937; }
-    .stTextArea textarea { background-color: #f9fafb !important; color: #111827 !important; border: 1px solid #d1d5db; }
+    .main { background-color: #0e1117; color: #fafafa; }
+    .stTextArea textarea { background-color: #1e1e2e !important; color: #ffffff !important; border: 1px solid #4b5563; }
     .stButton>button { 
         background-color: #2563eb !important; 
         color: #ffffff !important; 
@@ -350,20 +351,18 @@ st.markdown(
     }
     .stButton>button:hover { background-color: #1d4ed8 !important; }
     .content-box {
-        background-color: #f8fafc;
+        background-color: #1e1e2e;
         padding: 20px;
         border-radius: 8px;
         border-top: 4px solid #10b981;
         margin-top: 10px;
-        color: #0f172a;
     }
     .ai-box {
-        background-color: #fffbeb;
+        background-color: #1a1a24;
         padding: 15px;
         border-radius: 8px;
-        border: 1px dashed #f59e0b;
+        border: 1px dashed #8b5cf6;
         margin-bottom: 15px;
-        color: #92400e;
     }
     </style>
     """,
@@ -371,7 +370,7 @@ st.markdown(
 )
 
 # -----------------------------------------------------------------------------
-# 2. SESSION STATE MANAGEMENT & AI FUNCTIONS
+# 2. SESSION STATE MANAGEMENT & HELPER FUNCTIONS
 # -----------------------------------------------------------------------------
 if "hourly_materials" not in st.session_state:
     st.session_state.hourly_materials = {}
@@ -393,13 +392,32 @@ def generate_ai_text(api_key, prompt_text):
         st.error(f"AI Generation Failed. Check API Key or Limits. Error: {e}")
         return ""
 
+def extract_text_from_uploads(uploaded_files):
+    """Extracts raw text from uploaded PDF/TXT files to feed into the AI."""
+    extracted_text = ""
+    for f in uploaded_files:
+        if f.name.endswith('.pdf'):
+            try:
+                reader = PdfReader(io.BytesIO(f.getvalue()))
+                for page in reader.pages:
+                    text = page.extract_text()
+                    if text: extracted_text += text + "\n"
+            except Exception:
+                pass
+        elif f.name.endswith('.txt'):
+            try:
+                extracted_text += f.getvalue().decode('utf-8') + "\n"
+            except Exception:
+                pass
+    return extracted_text
+
 # -----------------------------------------------------------------------------
 # 3. SIDEBAR & HEADER
 # -----------------------------------------------------------------------------
-groq_api_key = st.sidebar.text_input("Groq API Key (For AI Generation)", type="password")
+groq_api_key = st.sidebar.text_input("🔑 Groq API Key (For AI)", type="password")
 
 st.title("🕒 Interactive Hourly Content & AI Generator")
-st.caption("Select a Subject, Module, and Hour to author materials, generate AI notes, and create MCQs.")
+st.caption("Upload your main lecture content first. The AI will read your files and notes to automatically generate Pre & Post-class materials!")
 
 # --- SELECTION CONTROLS (3-Step Hierarchy) ---
 col1, col2, col3 = st.columns(3)
@@ -421,6 +439,7 @@ with col2:
 
 active_module = modules[selected_mod_idx]
 module_name = f"Module {active_module.get('module_num', selected_mod_idx+1)}"
+module_concepts = active_module.get("key_concepts", "No concepts provided.")
 
 with col3:
     raw_plan = active_module.get("hourly_plan", "")
@@ -429,7 +448,6 @@ with col3:
     selected_hour = st.selectbox("3. Select Teaching Hour", options=parsed_hours)
 
 state_key = f"{selected_subject}_{module_name}_{selected_hour}".replace(" ", "_")
-
 for key in ["pre_notes", "pre_mcqs", "post_notes", "post_mcqs"]:
     if f"{state_key}_{key}" not in st.session_state:
         st.session_state[f"{state_key}_{key}"] = ""
@@ -443,33 +461,49 @@ st.subheader(f"Authoring: {selected_subject} ➔ {module_name} ➔ {selected_hou
 with st.container():
     st.markdown('<div class="content-box">', unsafe_allow_html=True)
     
-    tab_main, tab_pre, tab_post = st.tabs(["🎓 Main Lecture", "🌅 Pre-Class (AI & Upload)", "🌇 Post-Class (AI & Upload)"])
+    tab_main, tab_pre, tab_post = st.tabs(["🎓 Main Lecture (Provide Content Here)", "🌅 Pre-Class (AI Generated)", "🌇 Post-Class (AI Generated)"])
     
     # ==========================================
     # TAB 1: MAIN LECTURE
     # ==========================================
     with tab_main:
-        main_notes = st.text_area(
-            "📝 Main Lecture Notes / Script (Fill this first to guide AI)", 
-            height=150, 
-            placeholder="Type your core concepts, examples, and talking points here. The AI will use this to generate the Pre/Post materials..."
-        )
+        st.info("💡 **Tip:** Type your notes or upload your lecture PDFs here first. The AI will read this content to generate accurate Pre and Post-class materials.")
+        main_notes = st.text_area("📝 Main Lecture Notes / Script", height=200, placeholder="Type core concepts, formulas, or talking points...")
         main_files = st.file_uploader("📎 Upload Main Supporting Files (PPTs, PDFs)", accept_multiple_files=True, key="main_files")
         
+        # Build the dynamic context corpus based on what the faculty provided
+        extracted_file_text = extract_text_from_uploads(main_files)
+        dynamic_context = f"Faculty Typed Notes:\n{main_notes}\n\nDocument Text:\n{extracted_file_text}".strip()
+        
+        # Fallback to syllabus concepts if faculty hasn't typed/uploaded anything yet
+        if len(dynamic_context) < 10:
+            dynamic_context = f"Syllabus Concepts: {module_concepts}"
+        
+        # Truncate context to stay within safe LLM token limits (~15,000 chars)
+        safe_context = dynamic_context[:15000]
+
     # ==========================================
     # TAB 2: PRE-CLASS (NOTES + MCQs)
     # ==========================================
     with tab_pre:
         st.markdown('<div class="ai-box">', unsafe_allow_html=True)
-        if st.button("✨ Auto-Generate Pre-Class Notes", key="btn_gen_pre"):
-            if not main_notes.strip():
-                st.warning("⚠️ Please fill out the 'Main Lecture Notes' in the first tab so the AI knows what you are teaching!")
-            else:
-                prompt = f"Based on the following main lecture notes, write an engaging 100-word pre-class reading instruction to prepare students for this specific class.\n\nMain Lecture Notes:\n{main_notes}"
-                st.session_state[f"{state_key}_pre_notes"] = generate_ai_text(groq_api_key, prompt)
+        if st.button("✨ Auto-Generate Pre-Class Notes from Main Content", key="btn_gen_pre"):
+            prompt = f"""
+            Based strictly on the following main lecture content for '{selected_subject}', write an engaging 100-word pre-class reading instruction.
+            Tell the students exactly what concepts they need to review before attending this class ({selected_hour}).
+            
+            Main Lecture Content:
+            {safe_context}
+            """
+            st.session_state[f"{state_key}_pre_notes"] = generate_ai_text(groq_api_key, prompt)
         
-        pre_notes = st.text_area("🌅 Pre-Class Instructions / Reading Notes", value=st.session_state[f"{state_key}_pre_notes"], height=150, key=f"text_pre_notes_{state_key}")
-        pre_files = st.file_uploader("📎 Upload Pre-Class Reading Materials (PDFs)", accept_multiple_files=True, key="pre_files")
+        pre_notes = st.text_area(
+            "🌅 Pre-Class Instructions (Edit as needed)", 
+            value=st.session_state[f"{state_key}_pre_notes"],
+            height=150, 
+            key=f"text_pre_notes_{state_key}"
+        )
+        pre_files = st.file_uploader("📎 Upload Pre-Class Materials (Optional)", accept_multiple_files=True, key="pre_files")
         
         st.markdown("**🧠 Generate Pre-Class Knowledge Check (MCQs)**")
         pc1, pc2, pc3 = st.columns([1, 1, 2])
@@ -477,13 +511,22 @@ with st.container():
         pre_hard = pc2.number_input("Hard Qs", min_value=0, max_value=10, value=1, key="pre_hard")
         
         if pc3.button("✨ Generate Pre-Class MCQs", use_container_width=True, key="btn_mcq_pre"):
-            if not main_notes.strip():
-                st.warning("⚠️ Please fill out the 'Main Lecture Notes' first!")
-            else:
-                prompt = f"Based on the following main lecture notes, generate {pre_easy} easy and {pre_hard} hard multiple-choice questions to test prerequisite thinking. Format cleanly with Question and A/B/C/D options. IMPORTANT: Do NOT mark the correct answer inline so students can take the quiz blindly. Provide a separate 'Answer Key' at the very bottom.\n\nMain Lecture Notes:\n{main_notes}"
-                st.session_state[f"{state_key}_pre_mcqs"] = generate_ai_text(groq_api_key, prompt)
+            prompt = f"""
+            Based on the following main lecture content, generate {pre_easy} easy and {pre_hard} hard multiple-choice questions to test prerequisite knowledge for {selected_hour}.
+            Format strictly as:
+            Q) [Question]
+            A) [Option A]
+            B) [Option B]
+            C) [Option C]
+            D) [Option D]
+            Correct Answer: [Option]
             
-        pre_mcqs = st.text_area("Pre-Class MCQs (Edit below)", value=st.session_state[f"{state_key}_pre_mcqs"], height=200, key=f"text_pre_mcqs_{state_key}")
+            Main Lecture Content:
+            {safe_context}
+            """
+            st.session_state[f"{state_key}_pre_mcqs"] = generate_ai_text(groq_api_key, prompt)
+            
+        pre_mcqs = st.text_area("Pre-Class MCQs (Faculty View - Answers Included)", value=st.session_state[f"{state_key}_pre_mcqs"], height=250, key=f"text_pre_mcqs_{state_key}")
         st.markdown('</div>', unsafe_allow_html=True)
 
     # ==========================================
@@ -491,15 +534,22 @@ with st.container():
     # ==========================================
     with tab_post:
         st.markdown('<div class="ai-box">', unsafe_allow_html=True)
-        if st.button("✨ Auto-Generate Post-Class Summary", key="btn_gen_post"):
-            if not main_notes.strip():
-                st.warning("⚠️ Please fill out the 'Main Lecture Notes' first!")
-            else:
-                prompt = f"Based on the following main lecture notes, write a 100-word post-class summary and a follow-up assignment. Provide a real-world application.\n\nMain Lecture Notes:\n{main_notes}"
-                st.session_state[f"{state_key}_post_notes"] = generate_ai_text(groq_api_key, prompt)
+        if st.button("✨ Auto-Generate Post-Class Summary from Main Content", key="btn_gen_post"):
+            prompt = f"""
+            Based strictly on the following main lecture content, write a 100-word post-class summary and a brief follow-up assignment for students who just finished {selected_hour}.
             
-        post_notes = st.text_area("🌇 Post-Class Summary / Assignments", value=st.session_state[f"{state_key}_post_notes"], height=150, key=f"text_post_notes_{state_key}")
-        post_files = st.file_uploader("📎 Upload Post-Class Assignments (PDFs)", accept_multiple_files=True, key="post_files")
+            Main Lecture Content:
+            {safe_context}
+            """
+            st.session_state[f"{state_key}_post_notes"] = generate_ai_text(groq_api_key, prompt)
+            
+        post_notes = st.text_area(
+            "🌇 Post-Class Summary / Assignments", 
+            value=st.session_state[f"{state_key}_post_notes"],
+            height=150, 
+            key=f"text_post_notes_{state_key}"
+        )
+        post_files = st.file_uploader("📎 Upload Post-Class Assignments (Optional)", accept_multiple_files=True, key="post_files")
         
         st.markdown("**🧠 Generate Post-Class Assessment (MCQs)**")
         poc1, poc2, poc3 = st.columns([1, 1, 2])
@@ -507,13 +557,22 @@ with st.container():
         post_hard = poc2.number_input("Hard Qs", min_value=0, max_value=10, value=2, key="post_hard")
         
         if poc3.button("✨ Generate Post-Class MCQs", use_container_width=True, key="btn_mcq_post"):
-            if not main_notes.strip():
-                st.warning("⚠️ Please fill out the 'Main Lecture Notes' first!")
-            else:
-                prompt = f"Based on the following main lecture notes, generate {post_easy} easy and {post_hard} hard multiple-choice questions to test retention. Format cleanly with Question and A/B/C/D options. IMPORTANT: Do NOT mark the correct answer inline so students can take the quiz blindly. Provide a separate 'Answer Key' at the very bottom.\n\nMain Lecture Notes:\n{main_notes}"
-                st.session_state[f"{state_key}_post_mcqs"] = generate_ai_text(groq_api_key, prompt)
+            prompt = f"""
+            Based strictly on the following main lecture content, generate {post_easy} easy and {post_hard} hard multiple-choice questions to test student retention of {selected_hour}.
+            Format strictly as:
+            Q) [Question]
+            A) [Option A]
+            B) [Option B]
+            C) [Option C]
+            D) [Option D]
+            Correct Answer: [Option]
             
-        post_mcqs = st.text_area("Post-Class MCQs (Edit below)", value=st.session_state[f"{state_key}_post_mcqs"], height=200, key=f"text_post_mcqs_{state_key}")
+            Main Lecture Content:
+            {safe_context}
+            """
+            st.session_state[f"{state_key}_post_mcqs"] = generate_ai_text(groq_api_key, prompt)
+            
+        post_mcqs = st.text_area("Post-Class MCQs (Faculty View - Answers Included)", value=st.session_state[f"{state_key}_post_mcqs"], height=250, key=f"text_post_mcqs_{state_key}")
         st.markdown('</div>', unsafe_allow_html=True)
     
     st.markdown("<br/>", unsafe_allow_html=True)
