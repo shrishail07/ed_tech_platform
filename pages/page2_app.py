@@ -289,6 +289,20 @@ with st.container():
 # -----------------------------------------------------------------------------
 # 4. REVIEW SAVED CONTENT
 # -----------------------------------------------------------------------------
+# st.markdown("---")
+# with st.expander("Review Saved Hourly Materials (Session Overview)"):
+#     if not st.session_state.hourly_materials:
+#         st.info("No materials saved yet.")
+#     else:
+#         for mod_key, hours_dict in st.session_state.hourly_materials.items():
+#             st.markdown(f"**{mod_key}**")
+#             for hr_key, content in hours_dict.items():
+#                 total_files = len(content['main']['files']) + len(content['pre']['files']) + len(content['post']['files'])
+#                 st.write(f"- **{hr_key}**: {total_files} total files attached across all phases.")
+
+# -----------------------------------------------------------------------------
+# 4. REVIEW SAVED CONTENT
+# -----------------------------------------------------------------------------
 st.markdown("---")
 with st.expander("Review Saved Hourly Materials (Session Overview)"):
     if not st.session_state.hourly_materials:
@@ -297,5 +311,15 @@ with st.expander("Review Saved Hourly Materials (Session Overview)"):
         for mod_key, hours_dict in st.session_state.hourly_materials.items():
             st.markdown(f"**{mod_key}**")
             for hr_key, content in hours_dict.items():
-                total_files = len(content['main']['files']) + len(content['pre']['files']) + len(content['post']['files'])
-                st.write(f"- **{hr_key}**: {total_files} total files attached across all phases.")
+                # Safety check to handle old session data vs new tabbed data
+                if "main" in content:
+                    total_files = (
+                        len(content.get('main', {}).get('files', [])) + 
+                        len(content.get('pre', {}).get('files', [])) + 
+                        len(content.get('post', {}).get('files', []))
+                    )
+                else:
+                    # Fallback for old data structure
+                    total_files = len(content.get('files', []))
+                    
+                st.write(f"- **{hr_key}**: {total_files} total files attached.")
