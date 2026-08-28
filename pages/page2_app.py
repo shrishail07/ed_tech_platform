@@ -112,7 +112,8 @@ with st.container():
             
         st.session_state.hourly_materials[module_name][selected_hour] = {
             "notes": lecture_notes,
-            "files": [{"name": f.name, "type": f.type, "size": f.size} for f in uploaded_files] 
+            #"files": [{"name": f.name, "type": f.type, "size": f.size} for f in uploaded_files] 
+            "files": [{"name": f.name, "type": f.type, "bytes": f.getvalue()} for f in uploaded_files]
             # Note: In a real DB, you would save the actual file bytes/urls here. 
             # We are storing metadata for the POC session state.
         }
