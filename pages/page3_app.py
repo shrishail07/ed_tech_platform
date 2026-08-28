@@ -42,6 +42,31 @@ def display_pdf(pdf_bytes):
     pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf" />'
     st.markdown(pdf_display, unsafe_allow_html=True)
 
+def render_phase_content(phase_data):
+    """Renders notes and files for a specific learning phase."""
+    if not phase_data or (not phase_data.get("notes") and not phase_data.get("files")):
+        st.info("No materials have been uploaded for this section yet.")
+        return
+
+    if phase_data.get("notes"):
+        st.markdown('<div class="content-box">', unsafe_allow_html=True)
+        st.write(phase_data["notes"])
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+    uploaded_files = phase_data.get("files", [])
+    if uploaded_files:
+        st.markdown("#### 📎 Attached Documents")
+        for file_data in uploaded_files:
+            if file_data["type"] == "application/pdf" and "bytes" in file_data:
+                with st.expander(f"View Document: {file_data['name']}", expanded=False):
+                    display_pdf(file_data["bytes"])
+            else:
+                st.download_button(
+                    label=f"Download {file_data['name']}",
+                    data=file_data.get("bytes", b""),
+                    file_name=file_data["name"]
+                )
+
 # -----------------------------------------------------------------------------
 # 3. STATE CHECKS
 # -----------------------------------------------------------------------------
@@ -53,7 +78,7 @@ if "extracted_data" not in st.session_state or not st.session_state.extracted_da
 # 4. MAIN UI & NAVIGATION
 # -----------------------------------------------------------------------------
 st.title("👨‍🎓 Student Interactive Portal")
-st.caption("Select your module and current teaching hour to access lecture materials and reference links.")
+st.caption("Select your module and current teaching hour to access your full learning journey.")
 
 data = st.session_state.extracted_data
 modules = data.get("modules", [])
@@ -85,42 +110,28 @@ st.markdown("---")
 # -----------------------------------------------------------------------------
 # 5. CONTENT DISPLAY DASHBOARD
 # -----------------------------------------------------------------------------
-tab1, tab2 = st.tabs(["📚 Hourly Lecture Content", "🔗 Global Course Resources (Page 1)"])
+faculty_uploads = st.session_state.get("hourly_materials", {}).get(module_name, {}).get(selected_hour, {})
 
-# TAB 1: Faculty Uploads from Page 2
-with tab1:
-    st.subheader(f"Lecture Materials: {module_name} ➔ {selected_hour}")
-    
-    # Safely fetch the data saved by the faculty in Page 2
-    faculty_uploads = st.session_state.get("hourly_materials", {}).get(module_name, {}).get(selected_hour, None)
-    
-    if not faculty_uploads:
-        st.info("No specific materials have been uploaded by the faculty for this hour yet.")
-    else:
-        # Display Faculty Notes
-        if faculty_uploads.get("notes"):
-            st.markdown('<div class="content-box">', unsafe_allow_html=True)
-            st.markdown("#### 📝 Faculty Lecture Notes")
-            st.write(faculty_uploads["notes"])
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Display Uploaded PDFs
-        uploaded_files = faculty_uploads.get("files", [])
-        if uploaded_files:
-            st.markdown("#### 📎 Attached Documents")
-            for file_data in uploaded_files:
-                if file_data["type"] == "application/pdf" and "bytes" in file_data:
-                    with st.expander(f"View Document: {file_data['name']}", expanded=True):
-                        display_pdf(file_data["bytes"])
-                else:
-                    st.download_button(
-                        label=f"Download {file_data['name']}",
-                        data=file_data.get("bytes", b""),
-                        file_name=file_data["name"]
-                    )
+tab_pre, tab_main, tab_post, tab_global = st.tabs([
+    "🌅 Pre-Class", 
+    "🎓 Main Lecture", 
+    "🌇 Post-Class", 
+    "🔗 Global Resources"
+])
 
-# TAB 2: Extracted Global Resources from Page 1
-with tab2:
+with tab_pre:
+    st.subheader(f"Pre-Class Preparation: {selected_hour}")
+    render_phase_content(faculty_uploads.get("pre", {}))
+
+with tab_main:
+    st.subheader(f"Main Lecture Materials: {selected_hour}")
+    render_phase_content(faculty_uploads.get("main", {}))
+
+with tab_post:
+    st.subheader(f"Post-Class Review: {selected_hour}")
+    render_phase_content(faculty_uploads.get("post", {}))
+
+with tab_global:
     st.subheader("General Course References & Video Links")
     st.caption("Extracted directly from the core syllabus.")
     
