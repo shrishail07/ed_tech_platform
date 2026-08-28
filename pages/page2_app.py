@@ -441,7 +441,6 @@ st.session_state["groq_api_key"] = groq_api_key
 st.title("🕒 Hour-by-Hour Content & AI Generator")
 st.caption("Auto-generate deep notes based on syllabus topics, or upload your own files to create grounded Pre/Post materials.")
 
-# Selection Controls (Subject ➔ Module ➔ Hour)
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -470,12 +469,16 @@ with col3:
         parsed_hours = ["Fallback Hour 1"]
     selected_hour = st.selectbox("3. Select Teaching Hour", options=parsed_hours)
 
-# State key for preserving in-progress edits for this specific hour
 state_key = f"{selected_subject}_{module_name}_{selected_hour}".replace(" ", "_")
 
-for k in ["main_notes", "main_extracted_doc", "pre_notes", "pre_mcqs", "post_notes", "post_mcqs"]:
-    if f"{state_key}_{k}" not in st.session_state:
-        st.session_state[f"{state_key}_{k}"] = ""
+# CRITICAL FIX: Initialize the exact widget keys used by the text areas so they populate correctly
+for k in ["main_notes", "pre_notes", "pre_mcqs", "post_notes", "post_mcqs"]:
+    widget_key = f"widget_{k}_{state_key}"
+    if widget_key not in st.session_state:
+        st.session_state[widget_key] = ""
+        
+if f"{state_key}_main_extracted_doc" not in st.session_state:
+    st.session_state[f"{state_key}_main_extracted_doc"] = ""
 
 # -----------------------------------------------------------------------------
 # 4. CONTENT AUTHORING & AI TABS
@@ -498,7 +501,6 @@ with st.container():
     with tab_main:
         st.markdown("#### Step 1: Provide Lecture Content")
         
-        # New Feature: Generate Deep Notes based on the Syllabus Hour
         st.markdown('<div class="ai-box">', unsafe_allow_html=True)
         if st.button("✨ Auto-Generate Deep Lecture Notes from Syllabus Topic", key=f"btn_gen_main_{state_key}"):
             with st.spinner("Generating deep lecture notes..."):
@@ -509,17 +511,17 @@ with st.container():
                 
                 Write comprehensive, highly detailed lecture notes (approx. 400 words) strictly covering this specific hour's topic. Include clear definitions, core concepts, and at least one practical/real-world example.
                 """
-                st.session_state[f"{state_key}_main_notes"] = generate_ai_text(groq_api_key, prompt)
+                # Assign directly to the widget key
+                st.session_state[f"widget_main_notes_{state_key}"] = generate_ai_text(groq_api_key, prompt)
         st.markdown('</div>', unsafe_allow_html=True)
         
-        main_notes_input = st.text_area(
+        # Text area linked directly to the session state key
+        st.text_area(
             "📝 Faculty Lecture Notes / Script", 
-            value=st.session_state[f"{state_key}_main_notes"],
             height=250, 
             placeholder="Generate notes above, type your own, or paste content here...",
             key=f"widget_main_notes_{state_key}"
         )
-        st.session_state[f"{state_key}_main_notes"] = main_notes_input
         
         main_files = st.file_uploader(
             "📎 Upload Lecture Documents (PDF, DOCX, TXT)", 
@@ -528,13 +530,10 @@ with st.container():
             key=f"widget_main_files_{state_key}"
         )
         
-        # Process and store uploaded text immediately in session state
         if main_files:
-            extracted_doc_text = extract_text_from_files(main_files)
-            st.session_state[f"{state_key}_main_extracted_doc"] = extracted_doc_text
+            st.session_state[f"{state_key}_main_extracted_doc"] = extract_text_from_files(main_files)
         
-        # Combine notes and uploaded text
-        combined_source_text = f"{st.session_state[f'{state_key}_main_notes']}\n\n{st.session_state[f'{state_key}_main_extracted_doc']}".strip()
+        combined_source_text = f"{st.session_state[f'widget_main_notes_{state_key}']}\n\n{st.session_state[f'{state_key}_main_extracted_doc']}".strip()
         
         if combined_source_text:
             st.markdown(
@@ -549,7 +548,6 @@ with st.container():
         else:
             st.info("ℹ️ Upload a document or type/generate notes above to enable AI features in Tabs 2 and 3.")
 
-    # Prepare safe context for AI prompts (truncated to avoid rate limits)
     safe_grounding_context = combined_source_text[:14000]
 
     # =========================================================================
@@ -579,15 +577,13 @@ with st.container():
                     2. Highlight the key terms and formulas mentioned in this document that they should preview.
                     3. Give them 2 guiding questions to think about.
                     """
-                    st.session_state[f"{state_key}_pre_notes"] = generate_ai_text(groq_api_key, prompt)
+                    st.session_state[f"widget_pre_notes_{state_key}"] = generate_ai_text(groq_api_key, prompt)
         
-        pre_notes = st.text_area(
+        st.text_area(
             "Pre-Class Notes (Editable)", 
-            value=st.session_state[f"{state_key}_pre_notes"],
             height=160, 
             key=f"widget_pre_notes_{state_key}"
         )
-        st.session_state[f"{state_key}_pre_notes"] = pre_notes
         
         pre_files = st.file_uploader("📎 Optional: Supporting Pre-Class Reading File", accept_multiple_files=True, key=f"pre_files_{state_key}")
         
@@ -622,15 +618,13 @@ with st.container():
                     Correct Answer: [Option Letter]
                     Explanation: [1-sentence explanation citing the content]
                     """
-                    st.session_state[f"{state_key}_pre_mcqs"] = generate_ai_text(groq_api_key, prompt)
+                    st.session_state[f"widget_pre_mcqs_{state_key}"] = generate_ai_text(groq_api_key, prompt)
                     
-        pre_mcqs = st.text_area(
+        st.text_area(
             "Pre-Class MCQs (Editable)", 
-            value=st.session_state[f"{state_key}_pre_mcqs"], 
             height=220, 
             key=f"widget_pre_mcqs_{state_key}"
         )
-        st.session_state[f"{state_key}_pre_mcqs"] = pre_mcqs
         st.markdown('</div>', unsafe_allow_html=True)
 
     # =========================================================================
@@ -658,15 +652,13 @@ with st.container():
                     1. Summary of Key Takeaways (3-4 bullet points extracted from the text).
                     2. Practical Application / Take-Home Problem based on the formulas or examples in the text.
                     """
-                    st.session_state[f"{state_key}_post_notes"] = generate_ai_text(groq_api_key, prompt)
+                    st.session_state[f"widget_post_notes_{state_key}"] = generate_ai_text(groq_api_key, prompt)
             
-        post_notes = st.text_area(
+        st.text_area(
             "Post-Class Summary / Assignments (Editable)", 
-            value=st.session_state[f"{state_key}_post_notes"],
             height=160, 
             key=f"widget_post_notes_{state_key}"
         )
-        st.session_state[f"{state_key}_post_notes"] = post_notes
         
         post_files = st.file_uploader("📎 Optional: Post-Class Homework File", accept_multiple_files=True, key=f"post_files_{state_key}")
         
@@ -701,15 +693,13 @@ with st.container():
                     Correct Answer: [Option Letter]
                     Explanation: [1-sentence explanation citing the content]
                     """
-                    st.session_state[f"{state_key}_post_mcqs"] = generate_ai_text(groq_api_key, prompt)
+                    st.session_state[f"widget_post_mcqs_{state_key}"] = generate_ai_text(groq_api_key, prompt)
             
-        post_mcqs = st.text_area(
+        st.text_area(
             "Post-Class MCQs (Editable)", 
-            value=st.session_state[f"{state_key}_post_mcqs"], 
             height=220, 
             key=f"widget_post_mcqs_{state_key}"
         )
-        st.session_state[f"{state_key}_post_mcqs"] = post_mcqs
         st.markdown('</div>', unsafe_allow_html=True)
     
     st.markdown("<br/>", unsafe_allow_html=True)
@@ -725,17 +715,17 @@ with st.container():
             
         st.session_state.hourly_materials[selected_subject][module_name][selected_hour] = {
             "main": {
-                "notes": st.session_state[f"{state_key}_main_notes"],
+                "notes": st.session_state[f"widget_main_notes_{state_key}"],
                 "files": [{"name": f.name, "type": f.type, "bytes": f.getvalue()} for f in (main_files or [])]
             },
             "pre": {
-                "notes": st.session_state[f"{state_key}_pre_notes"],
-                "mcqs": st.session_state[f"{state_key}_pre_mcqs"],
+                "notes": st.session_state[f"widget_pre_notes_{state_key}"],
+                "mcqs": st.session_state[f"widget_pre_mcqs_{state_key}"],
                 "files": [{"name": f.name, "type": f.type, "bytes": f.getvalue()} for f in (pre_files or [])]
             },
             "post": {
-                "notes": st.session_state[f"{state_key}_post_notes"],
-                "mcqs": st.session_state[f"{state_key}_post_mcqs"],
+                "notes": st.session_state[f"widget_post_notes_{state_key}"],
+                "mcqs": st.session_state[f"widget_post_mcqs_{state_key}"],
                 "files": [{"name": f.name, "type": f.type, "bytes": f.getvalue()} for f in (post_files or [])]
             }
         }
