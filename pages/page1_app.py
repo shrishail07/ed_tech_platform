@@ -280,11 +280,50 @@ st.set_page_config(
     layout="wide"
 )
 
+# st.markdown(
+#     """
+#     <style>
+#     .main { background-color: #0e1117; color: #fafafa; }
+#     .stTextArea textarea { background-color: #1e1e2e !important; color: #ffffff !important; border: 1px solid #333; }
+#     .stButton>button { 
+#         background-color: #2563eb !important; 
+#         color: #ffffff !important; 
+#         border-radius: 8px; 
+#         font-weight: bold; 
+#     }
+#     .stButton>button:hover { background-color: #1d4ed8 !important; }
+#     .header-box {
+#         background-color: #1e1e2e;
+#         padding: 15px;
+#         border-radius: 8px;
+#         border-left: 5px solid #2563eb;
+#         margin-bottom: 20px;
+#     }
+#     .subject-selector {
+#         background-color: #1a1a24;
+#         padding: 15px;
+#         border-radius: 8px;
+#         border: 1px solid #f59e0b;
+#         margin-bottom: 20px;
+#     }
+#     </style>
+#     """,
+#     unsafe_allow_html=True,
+# )
 st.markdown(
     """
     <style>
-    .main { background-color: #0e1117; color: #fafafa; }
-    .stTextArea textarea { background-color: #1e1e2e !important; color: #ffffff !important; border: 1px solid #333; }
+    /* Force main background to white and text to dark gray/black */
+    .main { background-color: #ffffff; color: #1f2937; }
+    
+    /* Lighten text areas and make text dark */
+    .stTextArea textarea { 
+        background-color: #f9fafb !important; 
+        color: #111827 !important; 
+        border: 1px solid #d1d5db; 
+    }
+    
+    /* Keep buttons blue but ensure high contrast */
     .stButton>button { 
         background-color: #2563eb !important; 
         color: #ffffff !important; 
@@ -292,25 +331,30 @@ st.markdown(
         font-weight: bold; 
     }
     .stButton>button:hover { background-color: #1d4ed8 !important; }
+    
+    /* Make the header box a very light gray/blue */
     .header-box {
-        background-color: #1e1e2e;
+        background-color: #f8fafc;
         padding: 15px;
         border-radius: 8px;
         border-left: 5px solid #2563eb;
         margin-bottom: 20px;
+        color: #0f172a;
     }
+    
+    /* Make the subject selector box a soft yellow/amber */
     .subject-selector {
-        background-color: #1a1a24;
+        background-color: #fffbeb;
         padding: 15px;
         border-radius: 8px;
         border: 1px solid #f59e0b;
         margin-bottom: 20px;
+        color: #92400e;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
-
 # -----------------------------------------------------------------------------
 # 2. SESSION STATE MANAGEMENT
 # -----------------------------------------------------------------------------
