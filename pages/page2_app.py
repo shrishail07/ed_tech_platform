@@ -439,7 +439,7 @@ groq_api_key = st.sidebar.text_input(
 st.session_state["groq_api_key"] = groq_api_key
 
 st.title("🕒 Hour-by-Hour Content & AI Generator")
-st.caption("Upload your primary lecture notes/documents. AI will generate pre-class materials, post-class summaries, and MCQs strictly from your uploaded content.")
+st.caption("Auto-generate deep notes based on syllabus topics, or upload your own files to create grounded Pre/Post materials.")
 
 # Selection Controls (Subject ➔ Module ➔ Hour)
 col1, col2, col3 = st.columns(3)
@@ -461,6 +461,7 @@ with col2:
 
 active_module = modules[selected_mod_idx]
 module_name = f"Module {active_module.get('module_num', selected_mod_idx+1)}"
+module_concepts = active_module.get("key_concepts", "No concepts provided.")
 
 with col3:
     raw_plan = active_module.get("hourly_plan", "")
@@ -496,13 +497,26 @@ with st.container():
     # =========================================================================
     with tab_main:
         st.markdown("#### Step 1: Provide Lecture Content")
-        st.caption("Type notes or upload lecture files (PDF/DOCX). The AI uses this exact content to generate Pre/Post notes and MCQs.")
+        
+        # New Feature: Generate Deep Notes based on the Syllabus Hour
+        st.markdown('<div class="ai-box">', unsafe_allow_html=True)
+        if st.button("✨ Auto-Generate Deep Lecture Notes from Syllabus Topic", key=f"btn_gen_main_{state_key}"):
+            with st.spinner("Generating deep lecture notes..."):
+                prompt = f"""
+                You are an expert professor teaching '{selected_subject}'.
+                Module Context: {module_concepts}
+                Today's Specific Topic: {selected_hour}
+                
+                Write comprehensive, highly detailed lecture notes (approx. 400 words) strictly covering this specific hour's topic. Include clear definitions, core concepts, and at least one practical/real-world example.
+                """
+                st.session_state[f"{state_key}_main_notes"] = generate_ai_text(groq_api_key, prompt)
+        st.markdown('</div>', unsafe_allow_html=True)
         
         main_notes_input = st.text_area(
             "📝 Faculty Lecture Notes / Script", 
             value=st.session_state[f"{state_key}_main_notes"],
-            height=180, 
-            placeholder="Type your lecture content, explanations, theorems, or talking points...",
+            height=250, 
+            placeholder="Generate notes above, type your own, or paste content here...",
             key=f"widget_main_notes_{state_key}"
         )
         st.session_state[f"{state_key}_main_notes"] = main_notes_input
@@ -526,14 +540,14 @@ with st.container():
             st.markdown(
                 f"""
                 <div class="status-badge">
-                    ✅ <strong>Source Material Ready:</strong> Detected {len(combined_source_text)} characters ({len(combined_source_text.split())} words) of content. 
+                    ✅ <strong>Source Material Ready:</strong> Detected {len(combined_source_text)} characters of content. 
                     You can now open Tabs 2 and 3 to generate grounded materials.
                 </div>
                 """, 
                 unsafe_allow_html=True
             )
         else:
-            st.info("ℹ️ Upload a document or type notes above to enable document-grounded AI generation.")
+            st.info("ℹ️ Upload a document or type/generate notes above to enable AI features in Tabs 2 and 3.")
 
     # Prepare safe context for AI prompts (truncated to avoid rate limits)
     safe_grounding_context = combined_source_text[:14000]
@@ -744,6 +758,6 @@ with st.expander("Review Saved Hourly Materials (Session Overview)"):
                 for hr_key, content in hours_dict.items():
                     if "main" in content:
                         total_files = len(content['main']['files']) + len(content['pre']['files']) + len(content['post']['files'])
-                        pre_mcq_status = "✅" if content['pre'].get('mcqs') else "❌"
-                        post_mcq_status = "✅" if content['post'].get('mcqs') else "❌"
+                        pre_mcq_status = "Generated" if content['pre'].get('mcqs') else "Pending"
+                        post_mcq_status = "Generated" if content['post'].get('mcqs') else "Pending"
                         st.write(f"- **{hr_key}**: {total_files} files | Pre-MCQs: {pre_mcq_status} | Post-MCQs: {post_mcq_status}")
