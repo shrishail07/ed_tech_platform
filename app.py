@@ -1,5 +1,7 @@
 import streamlit as st
 
+
+st.logo("my_logo.png")
 st.set_page_config(
     page_title="EduPlatform POC | Home",
     page_icon="🏫",
