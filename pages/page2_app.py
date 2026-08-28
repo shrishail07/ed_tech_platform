@@ -164,13 +164,6 @@ st.markdown(
         border-top: 4px solid #10b981;
         margin-top: 10px;
     }
-    .pre-post-box {
-        background-color: #1e1e2e;
-        padding: 20px;
-        border-radius: 8px;
-        border-top: 4px solid #f59e0b;
-        margin-top: 20px;
-    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -222,72 +215,75 @@ with col2:
 
     selected_hour = st.selectbox("2. Select Teaching Hour", options=parsed_hours)
 
-# --- UPLOAD INTERFACE (HOURLY CONTENT) ---
+# --- UPLOAD INTERFACE ---
 st.markdown("---")
 st.subheader(f"Upload Materials for: {module_name} ➔ {selected_hour}")
 
 with st.container():
     st.markdown('<div class="content-box">', unsafe_allow_html=True)
     
-    lecture_notes = st.text_area(
-        "📝 Faculty Lecture Notes / Script for this hour", 
-        height=200, 
-        placeholder="Type or paste the specific concepts, examples, and talking points you will cover during this hour..."
-    )
+    # Use tabs to organize Main, Pre-class, and Post-class uploads
+    tab_main, tab_pre, tab_post = st.tabs(["🎓 Main Lecture", "🌅 Pre-Class Materials", "🌇 Post-Class Materials"])
     
-    uploaded_files = st.file_uploader(
-        "📎 Upload Supporting Files (Presentations, PDFs, Code Snippets)", 
-        accept_multiple_files=True
-    )
-    
-    if st.button("Save Hourly Content", use_container_width=True):
-        if module_name not in st.session_state.hourly_materials:
-            st.session_state.hourly_materials[module_name] = {}
-            
-        # Keep existing pre/post notes if they exist, otherwise initialize
-        existing_data = st.session_state.hourly_materials[module_name].get(selected_hour, {})
+    with tab_main:
+        main_notes = st.text_area(
+            "📝 Main Lecture Notes / Script", 
+            height=150, 
+            placeholder="Type core concepts, examples, and talking points..."
+        )
+        main_files = st.file_uploader(
+            "📎 Upload Main Supporting Files (PPTs, PDFs)", 
+            accept_multiple_files=True,
+            key="main_files"
+        )
         
-        st.session_state.hourly_materials[module_name][selected_hour] = {
-            "notes": lecture_notes,
-            "files": [{"name": f.name, "type": f.type, "bytes": f.getvalue()} for f in uploaded_files],
-            "pre_notes": existing_data.get("pre_notes", ""),
-            "post_notes": existing_data.get("post_notes", "")
-        }
-        st.success(f"✅ Content saved successfully for '{selected_hour}' in {module_name}!")
-        
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# --- PRE-CLASS & POST-CLASS NOTES INTERFACE ---
-with st.container():
-    st.markdown('<div class="pre-post-box">', unsafe_allow_html=True)
-    st.markdown("#### 🌅 Pre-Class & 🌇 Post-Class Preparation")
-    
-    c1, c2 = st.columns(2, gap="medium")
-    with c1:
+    with tab_pre:
         pre_notes = st.text_area(
-            "Pre-Class Notes (Preparation)",
-            height=150,
-            placeholder="What should students read, prepare, or think about before attending this hour?"
+            "🌅 Pre-Class Instructions / Reading Notes", 
+            height=150, 
+            placeholder="What should students read or prepare before this hour?..."
         )
-    with c2:
+        pre_files = st.file_uploader(
+            "📎 Upload Pre-Class Reading Materials (PDFs)", 
+            accept_multiple_files=True,
+            key="pre_files"
+        )
+        
+    with tab_post:
         post_notes = st.text_area(
-            "Post-Class Notes (Review)",
-            height=150,
-            placeholder="Summary, review materials, or assignments to complete after this hour."
+            "🌇 Post-Class Summary / Assignments", 
+            height=150, 
+            placeholder="Summarize the hour or provide follow-up assignment details..."
         )
-
-    if st.button("Save Pre & Post-Class Notes", use_container_width=True):
+        post_files = st.file_uploader(
+            "📎 Upload Post-Class Assignments/Homework (PDFs)", 
+            accept_multiple_files=True,
+            key="post_files"
+        )
+    
+    st.markdown("<br/>", unsafe_allow_html=True)
+    
+    # Save Button
+    if st.button("Save All Content for this Hour", use_container_width=True):
         if module_name not in st.session_state.hourly_materials:
             st.session_state.hourly_materials[module_name] = {}
-        if selected_hour not in st.session_state.hourly_materials[module_name]:
-            # Initialize if they hit this save button before saving the main content
-            st.session_state.hourly_materials[module_name][selected_hour] = {"notes": "", "files": [], "pre_notes": "", "post_notes": ""}
             
-        st.session_state.hourly_materials[module_name][selected_hour]["pre_notes"] = pre_notes
-        st.session_state.hourly_materials[module_name][selected_hour]["post_notes"] = post_notes
+        st.session_state.hourly_materials[module_name][selected_hour] = {
+            "main": {
+                "notes": main_notes,
+                "files": [{"name": f.name, "type": f.type, "bytes": f.getvalue()} for f in main_files]
+            },
+            "pre": {
+                "notes": pre_notes,
+                "files": [{"name": f.name, "type": f.type, "bytes": f.getvalue()} for f in pre_files]
+            },
+            "post": {
+                "notes": post_notes,
+                "files": [{"name": f.name, "type": f.type, "bytes": f.getvalue()} for f in post_files]
+            }
+        }
+        st.success(f"✅ Main, Pre-Class, and Post-Class content saved successfully for '{selected_hour}' in {module_name}!")
         
-        st.success(f"✅ Pre and Post-class notes saved successfully for '{selected_hour}'!")
-
     st.markdown('</div>', unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
@@ -301,8 +297,5 @@ with st.expander("Review Saved Hourly Materials (Session Overview)"):
         for mod_key, hours_dict in st.session_state.hourly_materials.items():
             st.markdown(f"**{mod_key}**")
             for hr_key, content in hours_dict.items():
-                file_count = len(content.get('files', []))
-                notes_len = len(content.get('notes', ''))
-                has_pre = "Yes" if content.get("pre_notes") else "No"
-                has_post = "Yes" if content.get("post_notes") else "No"
-                st.write(f"- **{hr_key}**: {file_count} files, {notes_len} chars of main notes | Pre-Class: {has_pre} | Post-Class: {has_post}")
+                total_files = len(content['main']['files']) + len(content['pre']['files']) + len(content['post']['files'])
+                st.write(f"- **{hr_key}**: {total_files} total files attached across all phases.")
