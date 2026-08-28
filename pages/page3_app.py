@@ -36,12 +36,21 @@ st.markdown(
 # -----------------------------------------------------------------------------
 # 2. HELPER FUNCTIONS
 # -----------------------------------------------------------------------------
+# def display_pdf(pdf_bytes):
+#     """Embeds the PDF directly into the Streamlit UI."""
+#     base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
+#     pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf" />'
+#     st.markdown(pdf_display, unsafe_allow_html=True)
+
 def display_pdf(pdf_bytes):
     """Embeds the PDF directly into the Streamlit UI."""
     base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-    pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="600" type="application/pdf" />'
+    
+    # Swapped <embed> for <iframe> which has better cross-browser compatibility
+    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}#toolbar=0" width="100%" height="600" type="application/pdf"></iframe>'
+    
     st.markdown(pdf_display, unsafe_allow_html=True)
-
+    
 def render_phase_content(phase_data):
     """Renders notes and files for a specific learning phase."""
     if not phase_data or (not phase_data.get("notes") and not phase_data.get("files")):
