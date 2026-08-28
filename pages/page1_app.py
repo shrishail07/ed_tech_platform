@@ -42,13 +42,13 @@ st.markdown(
  # -----------------------------------------------------------------------------
  # 2. SESSION STATE MANAGEMENT
  # -----------------------------------------------------------------------------
- if "extracted_data" not in st.session_state:
+if "extracted_data" not in st.session_state:
      st.session_state.extracted_data = None
 
  # -----------------------------------------------------------------------------
  # 3. HELPER FUNCTIONS
  # -----------------------------------------------------------------------------
- def extract_text(uploaded_file) -> str:
+def extract_text(uploaded_file) -> str:
      """Extracts text from PDF or DOCX files."""
      text = ""
      if uploaded_file.name.endswith(".pdf"):
