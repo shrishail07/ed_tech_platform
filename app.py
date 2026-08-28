@@ -18,34 +18,45 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    .main { background-color: #0e1117; color: #fafafa; }
+    /* Light Theme Styles */
+    .main { background-color: #ffffff; color: #1f2937; }
+    
     .hero-box {
-        background-color: #1e1e2e;
+        background-color: #f8fafc;
         padding: 40px;
         border-radius: 12px;
         border-left: 6px solid #2563eb;
         margin-bottom: 30px;
         text-align: center;
+        color: #0f172a;
     }
+    
     .card {
-        background-color: #1e1e2e;
+        background-color: #ffffff;
         padding: 25px;
         border-radius: 10px;
-        border: 1px solid #2a2b3d;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         height: 100%;
-        transition: transform 0.2s;
+        transition: transform 0.2s, box-shadow 0.2s;
+        color: #334155;
     }
+    
     .card:hover {
         transform: translateY(-5px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         border-color: #2563eb;
     }
+    
     .stButton>button {
         background-color: #2563eb !important;
         color: #ffffff !important;
         border-radius: 8px;
         font-weight: bold;
         margin-top: 15px;
+        border: none;
     }
+    
     .stButton>button:hover {
         background-color: #1d4ed8 !important;
     }
@@ -79,7 +90,7 @@ st.markdown(
     """
     <div class="hero-box">
         <h1 style="margin-bottom: 10px;">AI-Powered Faculty Workspace</h1>
-        <p style="font-size: 1.2rem; color: #94a3b8; max-width: 800px; margin: 0 auto;">
+        <p style="font-size: 1.2rem; color: #475569; max-width: 800px; margin: 0 auto;">
             Automate syllabus extraction, map course outcomes, generate hourly teaching plans, 
             and centralize your lecture materials in one unified platform.
         </p>
@@ -94,11 +105,11 @@ with col1:
     st.markdown(
         """
         <div class="card">
-            <h2 style="color: #60a5fa;">Step 1: Curriculum Extractor</h2>
-            <p style="color: #cbd5e1; font-size: 1.05rem;">
+            <h2 style="color: #2563eb;">Step 1: Curriculum Extractor</h2>
+            <p style="color: #475569; font-size: 1.05rem;">
                 Upload a PDF or Word document to instantly generate a structured teaching plan.
             </p>
-            <ul style="color: #94a3b8; line-height: 1.8;">
+            <ul style="color: #64748b; line-height: 1.8;">
                 <li>Extract Subject Metadata & Outcomes</li>
                 <li>Calculate Optimal Teaching Hours</li>
                 <li>Generate a 5-Module Hourly Breakdown</li>
@@ -114,11 +125,11 @@ with col2:
     st.markdown(
         """
         <div class="card">
-            <h2 style="color: #34d399;">Step 2: Content Ingestion</h2>
-            <p style="color: #cbd5e1; font-size: 1.05rem;">
+            <h2 style="color: #059669;">Step 2: Content Ingestion</h2>
+            <p style="color: #475569; font-size: 1.05rem;">
                 Map specific lecture notes and files to the hourly schedule generated in Step 1.
             </p>
-            <ul style="color: #94a3b8; line-height: 1.8;">
+            <ul style="color: #64748b; line-height: 1.8;">
                 <li>Select Modules and Specific Teaching Hours</li>
                 <li>Author Main, Pre-Class, and Post-Class Notes</li>
                 <li>Attach Supporting Presentations & Code</li>
@@ -134,11 +145,11 @@ with col3:
     st.markdown(
         """
         <div class="card">
-            <h2 style="color: #fbbf24;">Step 3: Student Portal</h2>
-            <p style="color: #cbd5e1; font-size: 1.05rem;">
+            <h2 style="color: #d97706;">Step 3: Student Portal</h2>
+            <p style="color: #475569; font-size: 1.05rem;">
                 Access the final interactive learning materials parsed directly from the faculty.
             </p>
-            <ul style="color: #94a3b8; line-height: 1.8;">
+            <ul style="color: #64748b; line-height: 1.8;">
                 <li>View Pre, Main, and Post-Class Content</li>
                 <li>Download or View Uploaded PDFs</li>
                 <li>Access Global Resources & Videos</li>
