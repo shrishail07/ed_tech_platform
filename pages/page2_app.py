@@ -118,8 +118,7 @@ with st.container():
         }
         st.success(f"✅ Content saved successfully for '{selected_hour}' in {module_name}!")
         
-st.markdown('</div>', unsafe_allow_html=True)
-
+        st.markdown('</div>', unsafe_allow_html=True)
 # -----------------------------------------------------------------------------
 # 4. REVIEW SAVED CONTENT
 # -----------------------------------------------------------------------------
