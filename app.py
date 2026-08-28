@@ -3,7 +3,11 @@ import streamlit as st
 # APP LOGO
 st.logo("my_logo.png")
 
-st.image("my_logo.png", width=350)
+left_co, cent_co, last_co = st.columns([1, 2, 1])
+
+with cent_co:
+    st.image("my_logo.png", width=550)
+
 st.set_page_config(
     page_title="EduPlatform POC | Home",
     page_icon="🏫",
