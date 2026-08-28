@@ -58,7 +58,7 @@ def extract_text(uploaded_file) -> str:
          text = docx2txt.process(io.BytesIO(uploaded_file.getvalue()))
      return text
 
- def process_syllabus_with_groq(api_key, text_content):
+def process_syllabus_with_groq(api_key, text_content):
      """Uses Groq to extract syllabus metadata, outcomes, resources, and module plans in JSON."""
     
      # 1. Use the currently supported active model
