@@ -1,5 +1,4 @@
 
-
 # import io
 # import re
 # import streamlit as st
@@ -110,11 +109,9 @@
 #     if not text or not text.strip():
 #         return None
     
-#     # 1. Clean Unstructured Data
 #     clean_text = re.sub(r'\n+', '\n', text)
 #     clean_text = re.sub(r'\s+', ' ', clean_text).strip()
     
-#     # 2. Chunking
 #     text_splitter = RecursiveCharacterTextSplitter(
 #         chunk_size=1000, 
 #         chunk_overlap=200,
@@ -122,7 +119,6 @@
 #     )
 #     chunks = text_splitter.split_text(clean_text)
     
-#     # 3. Build Vector Store
 #     if not chunks:
 #         return None
 #     embeddings = get_embeddings_model()
@@ -146,7 +142,6 @@
 #     """Retrieves relevant chunks from FAISS and generates response via LLM."""
 #     context = ""
 #     if vectorstore:
-#         # Retrieve the top 4 most relevant chunks based on the specific query
 #         docs = vectorstore.similarity_search(query, k=4)
 #         context = "\n\n".join([d.page_content for d in docs])
     
@@ -208,7 +203,7 @@
 # state_key = f"{selected_subject}_{module_name}_{selected_hour}".replace(" ", "_")
 
 # # Initialize widget keys
-# for k in ["main_notes", "pre_notes", "pre_mcqs", "post_notes", "post_mcqs", "youtube_link", "class_assignment"]:
+# for k in ["main_notes", "pre_notes", "pre_mcqs", "post_notes", "post_mcqs", "youtube_link", "google_form_link", "mcq_link", "class_assignment"]:
 #     widget_key = f"widget_{k}_{state_key}"
 #     if widget_key not in st.session_state:
 #         st.session_state[widget_key] = ""
@@ -282,18 +277,42 @@
 #             key=f"widget_main_notes_{state_key}"
 #         )
         
-#         st.markdown("#### Step 2: Additional Resources & Tasks")
-#         st.text_input(
-#             "🎥 YouTube Video Link",
-#             placeholder="e.g., https://www.youtube.com/watch?v=...",
-#             key=f"widget_youtube_link_{state_key}"
-#         )
+#         st.markdown("---")
+#         st.markdown("#### Step 2: Class Assignments & External Links")
+#         st.caption("Provide external resources, assignment documents, and assessment links for the students.")
+        
+#         c_link1, c_link2, c_link3 = st.columns(3)
+#         with c_link1:
+#             st.text_input(
+#                 "🎥 YouTube Video Link",
+#                 placeholder="https://www.youtube.com/watch?v=...",
+#                 key=f"widget_youtube_link_{state_key}"
+#             )
+#         with c_link2:
+#             st.text_input(
+#                 "📝 Google Form / Survey Link",
+#                 placeholder="https://forms.gle/...",
+#                 key=f"widget_google_form_link_{state_key}"
+#             )
+#         with c_link3:
+#             st.text_input(
+#                 "🔗 External MCQ / Quiz Link",
+#                 placeholder="e.g., Quizizz, Kahoot, or Form link",
+#                 key=f"widget_mcq_link_{state_key}"
+#             )
         
 #         st.text_area(
-#             "📋 Class Assignment",
-#             placeholder="Describe any in-class activities, homework, or assignments...",
-#             height=120,
+#             "📋 Class Assignment Instructions",
+#             placeholder="Describe any in-class activities, homework, or instructions...",
+#             height=100,
 #             key=f"widget_class_assignment_{state_key}"
+#         )
+        
+#         assignment_files = st.file_uploader(
+#             "📎 Upload Class Assignment Documents (PDF, DOCX, TXT)", 
+#             type=["pdf", "docx", "doc", "txt", "pptx"],
+#             accept_multiple_files=True, 
+#             key=f"widget_assignment_files_{state_key}"
 #         )
 
 #     # =========================================================================
@@ -402,7 +421,10 @@
 #             "main": {
 #                 "notes": st.session_state[f"widget_main_notes_{state_key}"],
 #                 "youtube_link": st.session_state[f"widget_youtube_link_{state_key}"],
+#                 "google_form_link": st.session_state[f"widget_google_form_link_{state_key}"],
+#                 "mcq_link": st.session_state[f"widget_mcq_link_{state_key}"],
 #                 "class_assignment": st.session_state[f"widget_class_assignment_{state_key}"],
+#                 "assignment_files": [{"name": f.name, "type": f.type, "bytes": f.getvalue()} for f in (assignment_files or [])],
 #                 "files": [{"name": f.name, "type": f.type, "bytes": f.getvalue()} for f in (main_files or [])]
 #             },
 #             "pre": {
@@ -416,7 +438,7 @@
 #                 "files": [{"name": f.name, "type": f.type, "bytes": f.getvalue()} for f in (post_files or [])]
 #             }
 #         }
-#         st.success(f"✅ All content (RAG Notes, Files, MCQs) saved successfully for '{selected_hour}' in {selected_subject}!")
+#         st.success(f"✅ All content (RAG Notes, Files, MCQs, and Links) saved successfully for '{selected_hour}' in {selected_subject}!")
         
 #     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -643,8 +665,14 @@ with col3:
 
 state_key = f"{selected_subject}_{module_name}_{selected_hour}".replace(" ", "_")
 
-# Initialize widget keys
-for k in ["main_notes", "pre_notes", "pre_mcqs", "post_notes", "post_mcqs", "youtube_link", "google_form_link", "mcq_link", "class_assignment"]:
+# Initialize widget keys for all tabs (Main, Pre, and Post)
+keys_to_init = [
+    "main_notes", "pre_notes", "pre_mcqs", "post_notes", "post_mcqs", 
+    "youtube_link", "google_form_link", "mcq_link", "class_assignment",
+    "pre_youtube_link", "pre_google_form_link", "pre_mcq_link",
+    "post_youtube_link", "post_google_form_link", "post_mcq_link"
+]
+for k in keys_to_init:
     widget_key = f"widget_{k}_{state_key}"
     if widget_key not in st.session_state:
         st.session_state[widget_key] = ""
@@ -668,7 +696,7 @@ with st.container():
     ])
     
     # =========================================================================
-    # TAB 1: MAIN LECTURE (UPLOAD & RAG PIPELINE TRIGGER)
+    # TAB 1: MAIN LECTURE
     # =========================================================================
     with tab_main:
         st.markdown("#### Step 1: Provide Lecture Content")
@@ -685,7 +713,7 @@ with st.container():
         
         combined_source_text = f"{st.session_state[f'widget_main_notes_{state_key}']}\n\n{st.session_state[f'{state_key}_main_extracted_doc']}".strip()
         
-        # Build RAG Database dynamically when content is provided
+        # Build RAG Database dynamically
         rag_vectorstore = None
         if combined_source_text:
             with st.spinner("Processing documents into Vector Database..."):
@@ -720,27 +748,14 @@ with st.container():
         
         st.markdown("---")
         st.markdown("#### Step 2: Class Assignments & External Links")
-        st.caption("Provide external resources, assignment documents, and assessment links for the students.")
         
         c_link1, c_link2, c_link3 = st.columns(3)
         with c_link1:
-            st.text_input(
-                "🎥 YouTube Video Link",
-                placeholder="https://www.youtube.com/watch?v=...",
-                key=f"widget_youtube_link_{state_key}"
-            )
+            st.text_input("🎥 YouTube Video Link", placeholder="https://www.youtube.com/watch?v=...", key=f"widget_youtube_link_{state_key}")
         with c_link2:
-            st.text_input(
-                "📝 Google Form / Survey Link",
-                placeholder="https://forms.gle/...",
-                key=f"widget_google_form_link_{state_key}"
-            )
+            st.text_input("📝 Google Form / Survey Link", placeholder="https://forms.gle/...", key=f"widget_google_form_link_{state_key}")
         with c_link3:
-            st.text_input(
-                "🔗 External MCQ / Quiz Link",
-                placeholder="e.g., Quizizz, Kahoot, or Form link",
-                key=f"widget_mcq_link_{state_key}"
-            )
+            st.text_input("🔗 External MCQ / Quiz Link", placeholder="e.g., Quizizz, Kahoot, or Form link", key=f"widget_mcq_link_{state_key}")
         
         st.text_area(
             "📋 Class Assignment Instructions",
@@ -757,7 +772,7 @@ with st.container():
         )
 
     # =========================================================================
-    # TAB 2: PRE-CLASS (RAG NOTES + PREREQUISITE MCQS)
+    # TAB 2: PRE-CLASS
     # =========================================================================
     with tab_pre:
         st.markdown('<div class="ai-box">', unsafe_allow_html=True)
@@ -776,6 +791,17 @@ with st.container():
         
         st.text_area("Pre-Class Notes (Editable)", height=160, key=f"widget_pre_notes_{state_key}")
         pre_files = st.file_uploader("📎 Optional: Supporting Pre-Class File", accept_multiple_files=True, key=f"pre_files_{state_key}")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        st.markdown("---")
+        st.markdown("#### 🔗 Pre-Class Additional Resources")
+        c_pre1, c_pre2, c_pre3 = st.columns(3)
+        with c_pre1:
+            st.text_input("🎥 YouTube Video Link", placeholder="https://www.youtube.com/watch?v=...", key=f"widget_pre_youtube_link_{state_key}")
+        with c_pre2:
+            st.text_input("📝 Google Form / Survey Link", placeholder="https://forms.gle/...", key=f"widget_pre_google_form_link_{state_key}")
+        with c_pre3:
+            st.text_input("🔗 External MCQ / Quiz Link", placeholder="e.g., Quizizz, Kahoot", key=f"widget_pre_mcq_link_{state_key}")
         
         st.markdown("---")
         st.markdown("#### 🧠 Pre-Class Diagnostic MCQs")
@@ -800,10 +826,9 @@ with st.container():
                 st.session_state[f"widget_pre_mcqs_{state_key}"] = rag_generate(groq_api_key, rag_vectorstore, query, sys_prompt)
                     
         st.text_area("Pre-Class MCQs (Editable)", height=220, key=f"widget_pre_mcqs_{state_key}")
-        st.markdown('</div>', unsafe_allow_html=True)
 
     # =========================================================================
-    # TAB 3: POST-CLASS (RAG SUMMARY + ASSESSMENT MCQS)
+    # TAB 3: POST-CLASS
     # =========================================================================
     with tab_post:
         st.markdown('<div class="ai-box">', unsafe_allow_html=True)
@@ -821,6 +846,17 @@ with st.container():
             
         st.text_area("Post-Class Summary / Assignments", height=160, key=f"widget_post_notes_{state_key}")
         post_files = st.file_uploader("📎 Optional: Post-Class File", accept_multiple_files=True, key=f"post_files_{state_key}")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        st.markdown("---")
+        st.markdown("#### 🔗 Post-Class Additional Resources")
+        c_post1, c_post2, c_post3 = st.columns(3)
+        with c_post1:
+            st.text_input("🎥 YouTube Video Link", placeholder="https://www.youtube.com/watch?v=...", key=f"widget_post_youtube_link_{state_key}")
+        with c_post2:
+            st.text_input("📝 Google Form / Survey Link", placeholder="https://forms.gle/...", key=f"widget_post_google_form_link_{state_key}")
+        with c_post3:
+            st.text_input("🔗 External MCQ / Quiz Link", placeholder="e.g., Quizizz, Kahoot", key=f"widget_post_mcq_link_{state_key}")
         
         st.markdown("---")
         st.markdown("#### 🧠 Post-Class Mastery MCQs")
@@ -845,7 +881,6 @@ with st.container():
                 st.session_state[f"widget_post_mcqs_{state_key}"] = rag_generate(groq_api_key, rag_vectorstore, query, sys_prompt)
             
         st.text_area("Post-Class MCQs (Editable)", height=220, key=f"widget_post_mcqs_{state_key}")
-        st.markdown('</div>', unsafe_allow_html=True)
     
     st.markdown("<br/>", unsafe_allow_html=True)
     
@@ -870,11 +905,17 @@ with st.container():
             },
             "pre": {
                 "notes": st.session_state[f"widget_pre_notes_{state_key}"],
+                "youtube_link": st.session_state[f"widget_pre_youtube_link_{state_key}"],
+                "google_form_link": st.session_state[f"widget_pre_google_form_link_{state_key}"],
+                "mcq_link": st.session_state[f"widget_pre_mcq_link_{state_key}"],
                 "mcqs": st.session_state[f"widget_pre_mcqs_{state_key}"],
                 "files": [{"name": f.name, "type": f.type, "bytes": f.getvalue()} for f in (pre_files or [])]
             },
             "post": {
                 "notes": st.session_state[f"widget_post_notes_{state_key}"],
+                "youtube_link": st.session_state[f"widget_post_youtube_link_{state_key}"],
+                "google_form_link": st.session_state[f"widget_post_google_form_link_{state_key}"],
+                "mcq_link": st.session_state[f"widget_post_mcq_link_{state_key}"],
                 "mcqs": st.session_state[f"widget_post_mcqs_{state_key}"],
                 "files": [{"name": f.name, "type": f.type, "bytes": f.getvalue()} for f in (post_files or [])]
             }
