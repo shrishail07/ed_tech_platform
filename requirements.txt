@@ -9,4 +9,4 @@ faiss-cpu
 sentence-transformers 
 langchain-community 
 python-pptx
-langchain-text-splitters
+langchain-text-splitter
