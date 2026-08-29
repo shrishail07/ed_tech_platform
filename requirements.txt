@@ -5,3 +5,7 @@ langchain>=0.2.0
 langchain-core>=0.2.0
 langchain-groq>=0.1.0
 streamlit-pdf-viewer>=0.0.16
+faiss-cpu 
+sentence-transformers 
+langchain-community 
+python-pptx
