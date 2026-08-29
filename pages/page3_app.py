@@ -72,7 +72,6 @@
         
 #     st.markdown(f"#### {title}")
 #     for idx, file_data in enumerate(files):
-#         # Create a 4:1 column layout for the View Expander and Download Button
 #         c1, c2 = st.columns([4, 1])
 #         with c1:
 #             if file_data["type"] == "application/pdf" and "bytes" in file_data:
@@ -130,22 +129,24 @@
     
 #     if yt_link or gf_link or mcq_link:
 #         st.markdown('<div class="link-box">', unsafe_allow_html=True)
-#         st.markdown("#### 🌐 Media & External Links")
         
 #         if yt_link:
-#             st.markdown(f"**🎥 Lecture Video:** [Watch on YouTube]({yt_link})")
+#             st.markdown("#### Youtube vedio link:")
 #             try:
 #                 st.video(yt_link)
 #             except Exception:
-#                 pass
+#                 st.markdown(f"[{yt_link}]({yt_link})")
 #             st.write("---")
             
-#         if gf_link or mcq_link:
-#             l1, l2 = st.columns(2)
-#             if gf_link: 
-#                 l1.markdown(f"📝 **[Open Google Form / Survey]({gf_link})**")
-#             if mcq_link: 
-#                 l2.markdown(f"🎯 **[Open External Quiz / MCQ]({mcq_link})**")
+#         if gf_link:
+#             st.markdown("#### Google form Link:")
+#             st.markdown(f"[{gf_link}]({gf_link})")
+#             st.write("---")
+            
+#         if mcq_link:
+#             st.markdown("#### Mcq link:")
+#             st.markdown(f"[{mcq_link}]({mcq_link})")
+            
 #         st.markdown('</div>', unsafe_allow_html=True)
 
 #     # 2. Main Text Notes
@@ -261,7 +262,6 @@
 #             st.markdown(f"- 🎥 **Video Link:** [{res.get('video_link', 'Not Available')}]({res.get('video_link', '#')})")
 #             st.write("---")
 #         st.markdown('</div>', unsafe_allow_html=True)
-
 
 import streamlit as st
 from streamlit_pdf_viewer import pdf_viewer
@@ -420,9 +420,10 @@ def render_phase_content(phase_data, phase_name):
         st.markdown('</div>', unsafe_allow_html=True)
         
     # 3. Downloadable Lecture Documents
-    render_file_list(phase_data.get("files", []), title="📎 Lecture Documents", key_prefix=f"doc_{phase_name}")
+    file_title = "📎 Lecture Documents" if phase_name == "main" else "📎 Attached Documents"
+    render_file_list(phase_data.get("files", []), title=file_title, key_prefix=f"doc_{phase_name}")
 
-    # 4. Class Assignments & Homework
+    # 4. Class Assignments & Homework (Mainly applies if present)
     assignment_text = phase_data.get("class_assignment")
     assignment_files = phase_data.get("assignment_files", [])
     
