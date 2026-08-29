@@ -1,4 +1,5 @@
 
+
 # import streamlit as st
 # from streamlit_pdf_viewer import pdf_viewer
 
@@ -155,8 +156,9 @@
 #         st.write(phase_data["notes"])
 #         st.markdown('</div>', unsafe_allow_html=True)
         
-#     # 3. Downloadable Lecture Documents
-#     render_file_list(phase_data.get("files", []), title="📎 Lecture Documents", key_prefix=f"doc_{phase_name}")
+#     # 3. Downloadable Documents (Applies dynamically to Pre, Main, and Post files)
+#     file_title = "📎 Lecture Documents" if phase_name == "main" else "📎 Attached Documents"
+#     render_file_list(phase_data.get("files", []), title=file_title, key_prefix=f"doc_{phase_name}")
 
 #     # 4. Class Assignments & Homework
 #     assignment_text = phase_data.get("class_assignment")
@@ -236,6 +238,7 @@
 #     "🔗 Global Resources"
 # ])
 
+# # Renders the exact same structured content boxes for all 3 phases
 # with tab_pre:
 #     st.subheader(f"Prepare for: {selected_hour}")
 #     render_phase_content(faculty_uploads.get("pre", {}), "pre")
@@ -262,6 +265,7 @@
 #             st.markdown(f"- 🎥 **Video Link:** [{res.get('video_link', 'Not Available')}]({res.get('video_link', '#')})")
 #             st.write("---")
 #         st.markdown('</div>', unsafe_allow_html=True)
+
 
 import streamlit as st
 from streamlit_pdf_viewer import pdf_viewer
@@ -325,9 +329,9 @@ st.markdown(
 # -----------------------------------------------------------------------------
 # 2. HELPER FUNCTIONS
 # -----------------------------------------------------------------------------
-def display_pdf(pdf_bytes):
-    """Renders the PDF using PDF.js to bypass Chrome's native iframe blocks."""
-    pdf_viewer(input=pdf_bytes, width=800, height=600)
+def display_pdf(pdf_bytes, unique_key):
+    """Renders the PDF using PDF.js to bypass Chrome's native iframe blocks. Requires unique key."""
+    pdf_viewer(input=pdf_bytes, width=800, height=600, key=unique_key)
 
 def render_file_list(files, title="📎 Attached Documents", key_prefix="dl"):
     """Renders a list of files with View (if PDF) and Download buttons."""
@@ -340,7 +344,9 @@ def render_file_list(files, title="📎 Attached Documents", key_prefix="dl"):
         with c1:
             if file_data["type"] == "application/pdf" and "bytes" in file_data:
                 with st.expander(f"📄 View Document: {file_data['name']}", expanded=False):
-                    display_pdf(file_data["bytes"])
+                    # Generate a perfectly unique key for the PDF viewer to prevent DuplicateElement errors
+                    viewer_key = f"pdf_viewer_{key_prefix}_{idx}_{file_data['name']}"
+                    display_pdf(file_data["bytes"], unique_key=viewer_key)
             else:
                 st.markdown(f"📄 **{file_data['name']}** *(Preview not available for this file type)*")
         with c2:
@@ -419,7 +425,7 @@ def render_phase_content(phase_data, phase_name):
         st.write(phase_data["notes"])
         st.markdown('</div>', unsafe_allow_html=True)
         
-    # 3. Downloadable Documents (Applies dynamically to Pre, Main, and Post files)
+    # 3. Downloadable Lecture Documents
     file_title = "📎 Lecture Documents" if phase_name == "main" else "📎 Attached Documents"
     render_file_list(phase_data.get("files", []), title=file_title, key_prefix=f"doc_{phase_name}")
 
@@ -501,7 +507,6 @@ tab_pre, tab_main, tab_post, tab_global = st.tabs([
     "🔗 Global Resources"
 ])
 
-# Renders the exact same structured content boxes for all 3 phases
 with tab_pre:
     st.subheader(f"Prepare for: {selected_hour}")
     render_phase_content(faculty_uploads.get("pre", {}), "pre")
